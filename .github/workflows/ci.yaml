@@ -20,4 +20,4 @@ jobs:
     - name: Run tests
       run: cargo test
     - name: Run result
-      run: cargo run --release run --check
+      run: cargo run --release run --check --color

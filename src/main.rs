@@ -15,17 +15,17 @@ enum Command {
     /// run solutions of problems
     Run {
         /// timeout with measurement unit, e.g. "1s", "500ms". Default is "500ms".
-        #[arg(short, long = "timeout", name = "TIMEOUT", default_value = "500ms")]
+        #[arg(short = 't', long = "timeout", name = "TIMEOUT", default_value = "500ms")]
         timeout_str: String,
         /// do not limit execution time
         #[arg(short = 'o', long = "no-timeout", default_value_t = false)]
         no_timeout: bool,
         /// check answers after running
-        #[arg(short, long = "check", default_value_t = false)]
+        #[arg(short = 'c', long = "check", default_value_t = false)]
         check_answers: bool,
-        /// strict mode, all solutions MUST return correct answer.
-        #[arg(short, long = "strict", default_value_t = false)]
-        strict_mode: bool,
+        /// always color the output, even when not running in a terminal
+        #[arg(long = "color", default_value_t = false)]
+        always_color: bool,
         pids: Vec<i64>,
     },
     /// list problems
@@ -264,7 +264,7 @@ fn print_result(
     (correct_count, solutions.len() as i32)
 }
 
-fn do_run(pids: Vec<i64>, timeout_ms: u64, check_answers: bool, _: bool) {
+fn do_run(pids: Vec<i64>, timeout_ms: u64, check_answers: bool) {
     let sepline = "+".to_string()
         + &"-".repeat(4 + 2) + "+"      // PID
         + &"-".repeat(40 + 2) + "+"     // Title
@@ -405,7 +405,7 @@ fn main() {
             timeout_str,
             no_timeout,
             check_answers,
-            strict_mode,
+            always_color,
         } => {
             let timeout_ms = if no_timeout {
                 0
@@ -418,7 +418,11 @@ fn main() {
                     }
                 }
             };
-            do_run(pids, timeout_ms, check_answers, strict_mode);
+            if always_color {
+                colored::control::set_override(true);
+            }
+
+            do_run(pids, timeout_ms, check_answers);
         }
 
         Command::List { pids } => do_list(pids),
