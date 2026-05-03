@@ -3,6 +3,7 @@ use std::thread;
 use std::time;
 
 use clap::{Parser, Subcommand};
+use colored::{Colorize, Color};
 
 use crate::common::Checkable;
 
@@ -29,7 +30,9 @@ enum Command {
         pids: Vec<i64>,
     },
     /// list problems
-    List { pids: Vec<i64> },
+    List { 
+        pids: Vec<i64>
+    },
 }
 
 #[derive(clap::Parser)]
@@ -72,7 +75,7 @@ enum SolutionResult {
 
 fn solution_result_str(result: &SolutionResult) -> &str {
     match result {
-        SolutionResult::None => "NONE",
+        SolutionResult::None => "-",
         SolutionResult::Correct => "correct",
         SolutionResult::Wrong => "wrong",
         SolutionResult::Timeout => "timeout",
@@ -154,6 +157,35 @@ fn field_contect_adjust<T: ToString>(s: T, i: usize) -> String {
     }
 }
 
+fn color_result(result: &SolutionResult) -> colored::ColoredString {
+    let s = solution_result_str(result).to_string();
+
+    match result {
+        SolutionResult::Correct => s.green(),
+        SolutionResult::Timeout => s.yellow(),
+        SolutionResult::Wrong => s.red(),
+        SolutionResult::Crash => s.red(),
+        _ => s.normal(),
+    }
+}
+
+fn color_cost_time(cost_ms: f64) -> colored::ColoredString {
+    let s = format!("{:.3} ms", cost_ms);
+
+    if cost_ms < 100.0 {
+        s.green()
+
+    } else if cost_ms < 200.0 {
+        s.cyan()
+
+    } else if cost_ms < 400.0 {
+        s.yellow()
+
+    } else {
+        s.red()
+    }
+}
+
 fn do_run(pids: Vec<i64>, timeout_ms: u64, check_answers: bool, _: bool) {
     let sepline = "+".to_string()
         + &"-".repeat(4 + 2) + "+"      // PID
@@ -197,9 +229,11 @@ fn do_run(pids: Vec<i64>, timeout_ms: u64, check_answers: bool, _: bool) {
 
             let pid = field_contect_adjust(sln.pid, i);
             let title = field_contect_adjust(sln.title, i);
+            let result = color_result(&sln.result);
+            let cost = color_cost_time(sln.cost_ms);
 
-            println!("| {:>4} | {:<40} | {:<40} | {:^9} | {:>9.3} ms |",
-                pid, title, sln.solution, solution_result_str(&sln.result), sln.cost_ms);
+            println!("| {:>4} | {:<40} | {:<40} | {:^9} | {:>12} |",
+                pid, title, sln.solution, result, cost);
             count_solutions += 1;
         }
 
@@ -212,26 +246,75 @@ fn do_run(pids: Vec<i64>, timeout_ms: u64, check_answers: bool, _: bool) {
     println!("{}", sepline);
 
     let succ_rate = if count_problems > 0 {
-        (count_problems_succ as f64) / (count_problems as f64) * 100.0
+        let rate = (count_problems_succ as f64) / (count_problems as f64) * 100.0;
+        if rate == 100.0 {
+            format!("{:.2}", rate).green()
+        } else {
+            format!("{:.2}", rate).red()
+        }
+
     } else {
-        0.0
+        "-".yellow()
     };
-    
-    println!("Problems: {}/{} ({:.2}%) , Solutions: {}/{}",
-        count_problems_succ, count_problems, succ_rate,
+
+    let problem_succ = if count_problems_succ == count_problems {
+        count_problems_succ.to_string().green()
+    } else {
+        count_problems_succ.to_string().red()
+    };
+    let problem_total = count_problems.to_string().blue();
+
+    println!("Problems: {}/{} ({}%) , Solutions: {}/{}",
+        problem_succ, problem_total, succ_rate,
         count_solutions_succ, count_solutions);
     println!("Total time: {:.3} ms", elapsed_time);
 }
 
 fn do_list(pids: Vec<i64>) {
+    let sepline = "+".to_string()
+        + &"-".repeat(4 + 2) + "+"      // PID
+        + &"-".repeat(40 + 2) + "+"     // Title
+        + &"-".repeat(40 + 2) + "+"     // Solution
+    ;
+
+    println!("{}", sepline);
+    println!("| {:^4} | {:^40} | {:^40} |", "PID", "Title", "Solution");
+    println!("{}", sepline);
+
+    let mut count_problems = 0;
+    let mut count_solutions = 0;
+
+    let colors = vec![
+        Color::Blue,
+        Color::Yellow,
+        Color::Green,
+        Color::Magenta,
+        Color::Cyan,
+        Color::White,
+    ];
     let problems = problems::all_problems();
+    let mut j = 0;
     for problem in problems {
         if !pids.is_empty() && pids.contains(&problem.id) {
             continue;
         }
 
-        println!("{}: {}", problem.id, problem.title);
+        for (i, sln) in problem.solutions.iter().enumerate() {
+            let pid = field_contect_adjust(problem.id, i).blue();
+            let title = field_contect_adjust(problem.title, i).green();
+            let name = sln.name.color(colors[j % colors.len()]);
+            println!("| {:>4} | {:<40} | {:<40} |", pid, title, name);
+            count_solutions += 1;
+            j += 1;
+        }
+        count_problems += 1;
     }
+
+    println!("{}", sepline);
+    println!("found {} problems with {} solutions",
+        count_problems.to_string().yellow(),
+        count_solutions.to_string().yellow(),
+    );
 }
 
 fn main() {

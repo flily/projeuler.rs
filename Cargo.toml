@@ -6,3 +6,4 @@ authors = ["Flily Hsu"]
 
 [dependencies]
 clap = { version = "4.6.1", features = ["derive"] }
+colored = "3.1.1"
