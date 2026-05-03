@@ -18,11 +18,13 @@ pub static INFO: std::sync::LazyLock<Problem> = std::sync::LazyLock::new(|| Prob
 pub fn load() -> Vec<String> {
     let content: Vec<u8> = load_data();
 
-    content.split(|&c| c == b',')
+    content
+        .split(|&c| c == b',')
         .map(|s| {
             // remove the leading and trailing double quotes
-            s[1..s.len() - 1].iter()
-            // convert to String
+            s[1..s.len() - 1]
+                .iter()
+                // convert to String
                 .map(|&c| c as char)
                 .collect()
         })

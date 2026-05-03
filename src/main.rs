@@ -3,36 +3,33 @@ use std::thread;
 use std::time;
 
 use clap::{Parser, Subcommand};
-use colored::{Colorize, Color};
+use colored::{Color, Colorize};
 
 use crate::common::Checkable;
 
 mod common;
 mod problems;
 
-
 #[derive(Subcommand)]
 enum Command {
     /// run solutions of problems
     Run {
         /// timeout with measurement unit, e.g. "1s", "500ms". Default is "500ms".
-        #[arg(short, long="timeout", name="TIMEOUT", default_value="500ms")]
+        #[arg(short, long = "timeout", name = "TIMEOUT", default_value = "500ms")]
         timeout_str: String,
         /// do not limit execution time
-        #[arg(short='o', long="no-timeout", default_value_t=false)]
+        #[arg(short = 'o', long = "no-timeout", default_value_t = false)]
         no_timeout: bool,
         /// check answers after running
-        #[arg(short, long="check", default_value_t=false)]
+        #[arg(short, long = "check", default_value_t = false)]
         check_answers: bool,
         /// strict mode, all solutions MUST return correct answer.
-        #[arg(short, long="strict", default_value_t=false)]
+        #[arg(short, long = "strict", default_value_t = false)]
         strict_mode: bool,
         pids: Vec<i64>,
     },
     /// list problems
-    List { 
-        pids: Vec<i64>
-    },
+    List { pids: Vec<i64> },
 }
 
 #[derive(clap::Parser)]
@@ -46,21 +43,18 @@ fn parse_duration(s: &str) -> Result<u64, String> {
     let value_str: &str;
     let base: u64;
 
-    if s.ends_with("ms") {
-        value_str = &s[..s.len() - 2];
+    if let Some(stripped) = s.strip_suffix("ms") {
+        value_str = stripped;
         base = 1;
-
-    } else if s.ends_with("s") {
-        value_str = &s[..s.len() - 1];
+    } else if let Some(stripped) = s.strip_suffix("s") {
+        value_str = stripped;
         base = 1000;
-
     } else {
         value_str = s;
         base = 1000; // default to seconds if no unit is provided
     }
 
-    let value = value_str.parse::<u64>()
-        .map_err(|e| e.to_string())?;
+    let value = value_str.parse::<u64>().map_err(|e| e.to_string())?;
 
     Ok(value * base)
 }
@@ -104,7 +98,6 @@ impl FinalResult {
     }
 }
 
-
 struct RunResult {
     solution: &'static str,
     entry: common::Solution,
@@ -121,14 +114,17 @@ impl Checkable for RunResult {
 }
 
 fn make_run_results(info: &common::Problem) -> Vec<RunResult> {
-    info.solutions.iter().map(|sln| RunResult {
-        solution: sln.name,
-        entry: sln.entry,
-        answer: Some(info.answer),
-        got: None,
-        result: FinalResult::None, // default to None, will be updated after running
-        cost_ms: 0.0,
-    }).collect()
+    info.solutions
+        .iter()
+        .map(|sln| RunResult {
+            solution: sln.name,
+            entry: sln.entry,
+            answer: Some(info.answer),
+            got: None,
+            result: FinalResult::None, // default to None, will be updated after running
+            cost_ms: 0.0,
+        })
+        .collect()
 }
 
 fn run_solution(run_result: &mut RunResult, timeout_ms: u64, check_answer: bool) {
@@ -145,7 +141,7 @@ fn run_solution(run_result: &mut RunResult, timeout_ms: u64, check_answer: bool)
     let response = if timeout_ms == 0 {
         rx.recv().map_err(|e| e.into())
     } else {
-        rx.recv_timeout(timeout).map_err(|e| e.into())
+        rx.recv_timeout(timeout)
     };
 
     match response {
@@ -164,22 +160,17 @@ fn run_solution(run_result: &mut RunResult, timeout_ms: u64, check_answer: bool)
         Err(mpsc::RecvTimeoutError::Disconnected) => run_result.result = FinalResult::Crash,
     }
     run_result.cost_ms = t1.elapsed().as_nanos() as f64 / 1_000_000.0;
-
 }
-
 
 fn color_cost_time(cost_ms: f64, base: i32) -> colored::ColoredString {
     let s = format!("{:.3} ms", cost_ms);
 
     if cost_ms < 100.0 * base as f64 {
         s.green()
-
     } else if cost_ms < 200.0 * base as f64 {
         s.cyan()
-
     } else if cost_ms < 400.0 * base as f64 {
         s.yellow()
-
     } else {
         s.red()
     }
@@ -187,12 +178,14 @@ fn color_cost_time(cost_ms: f64, base: i32) -> colored::ColoredString {
 
 fn print_problem_result(problem: &common::Problem, problem_result: FinalResult, cost_ms: f64) {
     let pid = problem_result.color_on(&problem.id.to_string());
-    let title = problem_result.color_on(&problem.title);
+    let title = problem_result.color_on(problem.title);
     let cost = color_cost_time(cost_ms, problem.solutions.len() as i32);
     let result = problem_result.color_string();
     let solutions = format!("+-- {} solutions", problem.solutions.len());
-    println!("| {:>4} | {:<40} | {:<40} | {:^9} | {:>12} |",
-        pid, title, solutions, result, cost);
+    println!(
+        "| {:>4} | {:<40} | {:<40} | {:^9} | {:>12} |",
+        pid, title, solutions, result, cost,
+    );
 }
 
 fn print_solution_result(run_result: &RunResult) {
@@ -200,8 +193,10 @@ fn print_solution_result(run_result: &RunResult) {
     let cost = color_cost_time(run_result.cost_ms, 1);
     let solution = format!("+- {}", run_result.solution).color(run_result.result.color());
 
-    println!("| {:>4} | {:<40} | {:<40} | {:^9} | {:>12} |",
-        "", "", solution, result, cost);
+    println!(
+        "| {:>4} | {:<40} | {:<40} | {:^9} | {:>12} |",
+        "", "", solution, result, cost,
+    );
 }
 
 fn make_problem_result(solutions: &Vec<RunResult>) -> FinalResult {
@@ -219,21 +214,29 @@ fn make_problem_result(solutions: &Vec<RunResult>) -> FinalResult {
         }
     }
 
-    return result;
+    result
 }
 
 fn print_one_solution_problem(problem: &common::Problem, run_result: &RunResult) {
     let pid = run_result.result.color_on(&problem.id.to_string());
-    let title = run_result.result.color_on(&problem.title);
+    let title = run_result.result.color_on(problem.title);
     let result = run_result.result.color_string();
     let cost = color_cost_time(run_result.cost_ms, 1);
-    let solution = run_result.result.color_on(&format!("- {}", run_result.solution));
+    let solution = run_result
+        .result
+        .color_on(&format!("- {}", run_result.solution));
 
-    println!("| {:>4} | {:<40} | {:<40} | {:^9} | {:>12} |",
-        pid, title, solution, result, cost);
+    println!(
+        "| {:>4} | {:<40} | {:<40} | {:^9} | {:>12} |",
+        pid, title, solution, result, cost,
+    );
 }
 
-fn print_result(problem: &common::Problem, solutions: &Vec<RunResult>, cost: time::Duration) -> (i32, i32){
+fn print_result(
+    problem: &common::Problem,
+    solutions: &Vec<RunResult>,
+    cost: time::Duration,
+) -> (i32, i32) {
     if solutions.len() == 1 {
         let sln = &solutions[0];
         print_one_solution_problem(problem, sln);
@@ -246,20 +249,19 @@ fn print_result(problem: &common::Problem, solutions: &Vec<RunResult>, cost: tim
         return c;
     }
 
-    let problem_result = make_problem_result(&solutions);
+    let problem_result = make_problem_result(solutions);
     let cost_ms = cost.as_nanos() as f64 / 1_000_000.0;
     print_problem_result(problem, problem_result, cost_ms);
 
     let mut correct_count = 0;
     for sln in solutions {
-        match sln.result {
-            FinalResult::Correct => correct_count += 1,
-            _ => {}
+        if let FinalResult::Correct = sln.result {
+            correct_count += 1;
         }
         print_solution_result(sln);
     }
 
-    return (correct_count, solutions.len() as i32);
+    (correct_count, solutions.len() as i32)
 }
 
 fn do_run(pids: Vec<i64>, timeout_ms: u64, check_answers: bool, _: bool) {
@@ -272,15 +274,17 @@ fn do_run(pids: Vec<i64>, timeout_ms: u64, check_answers: bool, _: bool) {
     ;
 
     println!("{}", sepline);
-    println!("| {:>4} | {:<40} | {:<40} | {:^9} | {:>12} |",
-        "PID", "Title", "Solution", "Result", "Time");
+    println!(
+        "| {:>4} | {:<40} | {:<40} | {:^9} | {:>12} |",
+        "PID", "Title", "Solution", "Result", "Time",
+    );
     println!("{}", sepline);
 
     let mut count_problems = 0;
     let mut count_problems_succ = 0;
     let mut count_solutions = 0;
     let mut count_solutions_succ = 0;
-    
+
     let start_time = time::Instant::now();
     for problem in problems::all_problems().iter() {
         if !pids.is_empty() && !pids.contains(&problem.id) {
@@ -296,7 +300,6 @@ fn do_run(pids: Vec<i64>, timeout_ms: u64, check_answers: bool, _: bool) {
         let problem_time = problem_time_start.elapsed();
 
         let (correct_count, total_count) = print_result(problem, &solutions, problem_time);
-
 
         count_solutions_succ += correct_count;
         count_solutions += total_count;
@@ -317,7 +320,6 @@ fn do_run(pids: Vec<i64>, timeout_ms: u64, check_answers: bool, _: bool) {
         } else {
             format!("{:.2}", rate).red()
         }
-
     } else {
         "-".yellow()
     };
@@ -329,9 +331,10 @@ fn do_run(pids: Vec<i64>, timeout_ms: u64, check_answers: bool, _: bool) {
     };
     let problem_total = count_problems.to_string().blue();
 
-    println!("Problems: {}/{} ({}%) , Solutions: {}/{}",
-        problem_succ, problem_total, succ_rate,
-        count_solutions_succ, count_solutions);
+    println!(
+        "Problems: {}/{} ({}%) , Solutions: {}/{}",
+        problem_succ, problem_total, succ_rate, count_solutions_succ, count_solutions,
+    );
     let time_cost = format!("{:.3} ms", elapsed_time).yellow();
     println!("Total time: {}", time_cost);
 }
@@ -350,12 +353,7 @@ fn do_list(pids: Vec<i64>) {
     let mut count_problems = 0;
     let mut count_solutions = 0;
 
-    let colors = vec![
-        Color::Yellow,
-        Color::Green,
-        Color::Magenta,
-        Color::Cyan,
-    ];
+    let colors = [Color::Yellow, Color::Green, Color::Magenta, Color::Cyan];
     let problems = problems::all_problems();
     let mut j = 0;
     for problem in problems {
@@ -391,7 +389,8 @@ fn do_list(pids: Vec<i64>) {
     }
 
     println!("{}", sepline);
-    println!("found {} problems with {} solutions",
+    println!(
+        "found {} problems with {} solutions",
         count_problems.to_string().yellow(),
         count_solutions.to_string().yellow(),
     );
@@ -401,19 +400,24 @@ fn main() {
     let args = Args::parse();
 
     match args.command {
-        Command::Run { 
-            pids, timeout_str, no_timeout, check_answers, strict_mode
+        Command::Run {
+            pids,
+            timeout_str,
+            no_timeout,
+            check_answers,
+            strict_mode,
         } => {
-            let timeout_ms = if no_timeout { 0 } 
-                else {
-                    match parse_duration(&timeout_str) {
-                        Ok(ms) => ms,
-                        Err(e) => {
-                            eprintln!("invalid timeout '{}': {}", timeout_str, e);
-                            return;
-                        }
+            let timeout_ms = if no_timeout {
+                0
+            } else {
+                match parse_duration(&timeout_str) {
+                    Ok(ms) => ms,
+                    Err(e) => {
+                        eprintln!("invalid timeout '{}': {}", timeout_str, e);
+                        return;
                     }
-                };
+                }
+            };
             do_run(pids, timeout_ms, check_answers, strict_mode);
         }
 

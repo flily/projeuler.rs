@@ -8,21 +8,17 @@ fn collatz_seq_size(cache: &mut HashMap<i64, i64>, n: i64) -> i64 {
         match cache.get(&m) {
             Some(&length) => {
                 result += length;
-                break
+                break;
             }
             None => {
                 result += 1;
-                m = if m % 2 == 0 {
-                    m / 2
-                } else {
-                    3 * m + 1
-                };
+                m = if m % 2 == 0 { m / 2 } else { 3 * m + 1 };
             }
         }
     }
 
     cache.insert(n, result);
-    return result;
+    result
 }
 
 const LIMIT: i64 = 1_000_000;
@@ -44,5 +40,5 @@ pub fn solve() -> i64 {
         }
     }
 
-    return result;
+    result
 }

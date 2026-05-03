@@ -53,25 +53,23 @@ pub fn load_data() -> Vec<u8> {
         panic!("data directory not found: {}", DATA_PATH_BASE);
     }
 
-    for entry in fs::read_dir(data_path_base).unwrap() {
-        match entry {
-            Ok(entry) => {
-                let path = entry.path();
-                let file_name = path.file_name().unwrap().to_str().unwrap();
+    for entry in fs::read_dir(data_path_base).unwrap().flatten() {
+        let path = entry.path();
+        let file_name = path.file_name().unwrap().to_str().unwrap();
 
-                if file_name.starts_with(module_name) {
-                    let content = fs::read(path);
-                    match content {
-                        Ok(content) => {
-                            return content;
-                        }
-                        Err(e) => {
-                            panic!("Failed to read data file for problem {}: {}", module_name, e);
-                        }
-                    }
+        if file_name.starts_with(module_name) {
+            let content = fs::read(path);
+            match content {
+                Ok(content) => {
+                    return content;
                 }
-            },
-            _ => {},
+                Err(e) => {
+                    panic!(
+                        "Failed to read data file for problem {}: {}",
+                        module_name, e,
+                    );
+                }
+            }
         }
     }
 

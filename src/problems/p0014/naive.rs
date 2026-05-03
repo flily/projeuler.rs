@@ -1,17 +1,12 @@
-
 fn collatz_seq_size(n: i64) -> i64 {
     let mut m = n;
     let mut result = 1i64;
     while m > 1 {
-        m = if m % 2 == 0 {
-            m / 2
-        } else {
-            3 * m + 1
-        };
+        m = if m % 2 == 0 { m / 2 } else { 3 * m + 1 };
         result += 1;
     }
 
-    return result;
+    result
 }
 
 pub fn solve() -> i64 {
@@ -26,9 +21,8 @@ pub fn solve() -> i64 {
         }
     }
 
-    return result;
+    result
 }
-
 
 #[cfg(test)]
 mod tests {

@@ -1,4 +1,3 @@
-
 pub fn digit_square_sum(n: i64) -> i64 {
     let mut result = 0i64;
     let mut m = n;
@@ -9,7 +8,7 @@ pub fn digit_square_sum(n: i64) -> i64 {
         m /= 10;
     }
 
-    return result;
+    result
 }
 
 #[cfg(test)]

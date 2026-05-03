@@ -19,7 +19,7 @@ fn check_chains(n: i64, set1: &mut HashSet<i64>, set89: &mut HashSet<i64>) -> bo
         set1.insert(n);
     }
 
-    return ok89;
+    ok89
 }
 
 static LIMIT: i64 = 10_000_000;
@@ -38,5 +38,5 @@ pub fn solve() -> i64 {
         }
     }
 
-    return result;
+    result
 }

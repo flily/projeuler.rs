@@ -5,7 +5,7 @@ use super::common::digit_square_sum;
 static LIMIT: i64 = 10_000_000;
 static VECTOR_SIZE: usize = ((8 * 81) + 1) as usize;
 
-fn check_chains(n: i64, set1: &mut Vec<u8>, set89: &mut Vec<u8>) -> bool {
+fn check_chains(n: i64, set1: &mut [u8], set89: &mut [u8]) -> bool {
     let mut m = n;
     let mut ok1 = false;
     let mut ok89 = false;
@@ -24,9 +24,8 @@ fn check_chains(n: i64, set1: &mut Vec<u8>, set89: &mut Vec<u8>) -> bool {
         }
     }
 
-    return ok89;
+    ok89
 }
-
 
 pub fn solve() -> i64 {
     let mut result = 0i64;
@@ -43,5 +42,5 @@ pub fn solve() -> i64 {
         }
     }
 
-    return result;
+    result
 }

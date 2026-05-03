@@ -1,4 +1,4 @@
-fn collatz_seq_size(cache: &mut Vec<i64>, n: i64) -> i64 {
+fn collatz_seq_size(cache: &mut [i64], n: i64) -> i64 {
     let mut m = n;
     let mut result = 1i64;
 
@@ -10,13 +10,8 @@ fn collatz_seq_size(cache: &mut Vec<i64>, n: i64) -> i64 {
         };
 
         if 0 == item {
-            m = if m % 2 == 0 {
-                m / 2
-            } else {
-                3 * m + 1
-            };
+            m = if m % 2 == 0 { m / 2 } else { 3 * m + 1 };
             result += 1;
-
         } else {
             result += item;
             break;
@@ -24,7 +19,7 @@ fn collatz_seq_size(cache: &mut Vec<i64>, n: i64) -> i64 {
     }
 
     cache[n as usize] = result;
-    return result;
+    result
 }
 
 const LIMIT: i64 = 1_000_000;
@@ -47,5 +42,5 @@ pub fn solve() -> i64 {
         }
     }
 
-    return result;
+    result
 }

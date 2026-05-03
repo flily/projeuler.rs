@@ -6,7 +6,7 @@ fn check_chains(n: i64) -> bool {
         m = common::digit_square_sum(m);
     }
 
-    return m == 89;
+    m == 89
 }
 
 static LIMIT: i64 = 10_000_000;
@@ -20,5 +20,5 @@ pub fn solve() -> i64 {
         }
     }
 
-    return result;
+    result
 }

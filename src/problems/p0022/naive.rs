@@ -7,7 +7,7 @@ fn name_score(name: &str) -> i64 {
         result += (c as u8 - b'A' + 1) as i64;
     }
 
-    return result;
+    result
 }
 
 pub fn solve() -> i64 {
@@ -22,5 +22,5 @@ pub fn solve() -> i64 {
         result += index * score;
     }
 
-    return result;
+    result
 }

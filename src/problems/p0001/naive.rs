@@ -1,4 +1,3 @@
-
 pub fn solve() -> i64 {
     let mut result = 0i64;
 
@@ -8,5 +7,5 @@ pub fn solve() -> i64 {
         }
     }
 
-    return result;
+    result
 }

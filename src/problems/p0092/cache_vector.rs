@@ -2,7 +2,7 @@ use std::vec;
 
 use super::common::digit_square_sum;
 
-fn check_chains(n: i64, set1: &mut Vec<u8>, set89: &mut Vec<u8>) -> bool {
+fn check_chains(n: i64, set1: &mut [u8], set89: &mut [u8]) -> bool {
     let mut m = n;
     let mut ok1 = set1[m as usize] == 1;
     let mut ok89 = set89[m as usize] == 1;
@@ -19,7 +19,7 @@ fn check_chains(n: i64, set1: &mut Vec<u8>, set89: &mut Vec<u8>) -> bool {
         set1[n as usize] = 1;
     }
 
-    return ok89;
+    ok89
 }
 
 static LIMIT: i64 = 10_000_000;
@@ -38,5 +38,5 @@ pub fn solve() -> i64 {
         }
     }
 
-    return result;
+    result
 }
