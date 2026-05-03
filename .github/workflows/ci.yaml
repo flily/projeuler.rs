@@ -1,0 +1,23 @@
+name: CI
+
+on:
+  push:
+  pull_request:
+
+env:
+  CARGO_TERM_COLOR: always
+
+jobs:
+  run-ci:
+    runs-on: ubuntu-latest
+
+    steps:
+    - uses: actions/checkout@v6
+    - name: Code check
+      run: cargo clippy --all-targets --all-features -- -D warnings
+    - name: Build
+      run: cargo build --release
+    - name: Run tests
+      run: cargo test
+    - name: Run result
+      run: cargo run --release run --check
