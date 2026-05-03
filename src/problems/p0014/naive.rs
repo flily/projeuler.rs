@@ -1,7 +1,7 @@
 
 fn collatz_seq_size(n: i64) -> i64 {
     let mut m = n;
-    let mut result = 0i64;
+    let mut result = 1i64;
     while m > 1 {
         m = if m % 2 == 0 {
             m / 2
@@ -11,7 +11,7 @@ fn collatz_seq_size(n: i64) -> i64 {
         result += 1;
     }
 
-    return result + 1;
+    return result;
 }
 
 pub fn solve_naive() -> i64 {
@@ -33,10 +33,10 @@ pub fn solve_naive() -> i64 {
 #[cfg(test)]
 mod tests {
     use crate::common::Checkable;
-    use crate::problems::p0014::naive::solve_naive;
-
+    
     use super::super::INFO;
     use super::collatz_seq_size;
+    use super::solve_naive;
 
     #[test]
     fn test_collatz_seq_size() {

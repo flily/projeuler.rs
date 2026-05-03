@@ -1,7 +1,8 @@
 use crate::common::{Problem, SolutionInfo};
 
 mod naive;
-mod cache;
+mod cache_hash;
+mod cache_table;
 
 pub static INFO: std::sync::LazyLock<Problem> = std::sync::LazyLock::new(|| Problem {
     id: 14,
@@ -14,8 +15,12 @@ pub static INFO: std::sync::LazyLock<Problem> = std::sync::LazyLock::new(|| Prob
             entry: naive::solve_naive,
         },
         SolutionInfo {
-            name: "with cache",
-            entry: cache::solve_cache,
+            name: "with cache (HashMap)",
+            entry: cache_hash::solve_cache,
+        },
+        SolutionInfo {
+            name: "with cache (Vector)",
+            entry: cache_table::solve_cache,
         },
     ],
 });

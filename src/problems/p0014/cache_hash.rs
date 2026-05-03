@@ -28,7 +28,7 @@ fn collatz_seq_size(cache: &mut HashMap<i64, i64>, n: i64) -> i64 {
 const LIMIT: i64 = 1_000_000;
 
 pub fn solve_cache() -> i64 {
-    let mut cache = HashMap::with_capacity(2 * LIMIT as usize);
+    let mut cache = HashMap::with_capacity(LIMIT as usize);
     cache.insert(1, 1);
     cache.insert(2, 2);
     cache.insert(3, 9);
@@ -51,9 +51,9 @@ pub fn solve_cache() -> i64 {
 #[cfg(test)]
 mod tests {
     use crate::common::Checkable;
-    use crate::problems::p0014::cache::solve_cache;
-
+    
     use super::super::INFO;
+    use super::solve_cache;
 
     #[test]
     fn test_solve_cache() {
