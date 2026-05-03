@@ -65,6 +65,7 @@ fn parse_duration(s: &str) -> Result<u64, String> {
     Ok(value * base)
 }
 
+#[derive(Clone)]
 enum SolutionResult {
     None,
     Correct,
@@ -84,8 +85,6 @@ fn solution_result_str(result: &SolutionResult) -> &str {
 }
 
 struct RunResult {
-    pid: i64,
-    title: &'static str,
     solution: &'static str,
     entry: common::Solution,
     answer: Option<i64>,
@@ -102,8 +101,6 @@ impl Checkable for RunResult {
 
 fn make_run_results(info: &common::Problem) -> Vec<RunResult> {
     info.solutions.iter().map(|sln| RunResult {
-        pid: info.id,
-        title: info.title,
         solution: sln.name,
         entry: sln.entry,
         answer: Some(info.answer),
@@ -169,21 +166,94 @@ fn color_result(result: &SolutionResult) -> colored::ColoredString {
     }
 }
 
-fn color_cost_time(cost_ms: f64) -> colored::ColoredString {
+fn color_cost_time(cost_ms: f64, base: i32) -> colored::ColoredString {
     let s = format!("{:.3} ms", cost_ms);
 
-    if cost_ms < 100.0 {
+    if cost_ms < 100.0 * base as f64 {
         s.green()
 
-    } else if cost_ms < 200.0 {
+    } else if cost_ms < 200.0 * base as f64 {
         s.cyan()
 
-    } else if cost_ms < 400.0 {
+    } else if cost_ms < 400.0 * base as f64 {
         s.yellow()
 
     } else {
         s.red()
     }
+}
+
+fn print_problem_result(problem: &common::Problem, problem_result: SolutionResult, cost_ms: f64) {
+    let cost = color_cost_time(cost_ms, problem.solutions.len() as i32);
+    let result = color_result(&problem_result);
+    let solutions = format!("+-- {} solutions", problem.solutions.len()).cyan();
+    println!("| {:>4} | {:<40} | {:<40} | {:^9} | {:>12} |",
+        problem.id, problem.title, solutions, result, cost);
+}
+
+fn print_solution_result(run_result: &RunResult) {
+    let result = color_result(&run_result.result);
+    let cost = color_cost_time(run_result.cost_ms, 1);
+    let solution = format!("+- {}", run_result.solution);
+
+    println!("| {:>4} | {:<40} | {:<40} | {:^9} | {:>12} |",
+        "", "", solution, result, cost);
+}
+
+fn make_problem_result(solutions: &Vec<RunResult>) -> SolutionResult {
+    let mut result = SolutionResult::Timeout;
+    for sln in solutions {
+        match sln.result {
+            SolutionResult::Timeout => {}
+            SolutionResult::Correct => {
+                result = SolutionResult::Correct;
+            }
+            _ => {
+                result = sln.result.clone();
+                break;
+            }
+        }
+    }
+
+    return result;
+}
+
+fn print_one_solution_problem(problem: &common::Problem, run_result: &RunResult) {
+    let result = color_result(&run_result.result);
+    let cost = color_cost_time(run_result.cost_ms, 1);
+    let solution = format!("- {}", run_result.solution);
+
+    println!("| {:>4} | {:<40} | {:<40} | {:^9} | {:>12} |",
+        problem.id, problem.title, solution, result, cost);
+}
+
+fn print_result(problem: &common::Problem, solutions: &Vec<RunResult>, cost: time::Duration) -> (i32, i32){
+    if solutions.len() == 1 {
+        let sln = &solutions[0];
+        print_one_solution_problem(problem, sln);
+
+        let c = match sln.result {
+            SolutionResult::Correct => (1, 1),
+            _ => (0, 1),
+        };
+
+        return c;
+    }
+
+    let problem_result = make_problem_result(&solutions);
+    let cost_ms = cost.as_nanos() as f64 / 1_000_000.0;
+    print_problem_result(problem, problem_result, cost_ms);
+
+    let mut correct_count = 0;
+    for sln in solutions {
+        match sln.result {
+            SolutionResult::Correct => correct_count += 1,
+            _ => {}
+        }
+        print_solution_result(sln);
+    }
+
+    return (correct_count, solutions.len() as i32);
 }
 
 fn do_run(pids: Vec<i64>, timeout_ms: u64, check_answers: bool, _: bool) {
@@ -196,7 +266,7 @@ fn do_run(pids: Vec<i64>, timeout_ms: u64, check_answers: bool, _: bool) {
     ;
 
     println!("{}", sepline);
-    println!("| {:^4} | {:^40} | {:^40} | {:^9} | {:^12} |",
+    println!("| {:>4} | {:<40} | {:<40} | {:^9} | {:>12} |",
         "PID", "Title", "Solution", "Result", "Time");
     println!("{}", sepline);
 
@@ -207,41 +277,30 @@ fn do_run(pids: Vec<i64>, timeout_ms: u64, check_answers: bool, _: bool) {
     
     let start_time = time::Instant::now();
     for problem in problems::all_problems().iter() {
-        let mut has_failure = false;
         if !pids.is_empty() && !pids.contains(&problem.id) {
             continue;
         }
 
         let mut solutions = make_run_results(problem);
+        let problem_time_start = time::Instant::now();
         for sln in solutions.iter_mut() {
             let sln_timeout_ms = timeout_ms + problem.extra_time_ms.as_millis() as u64;
             run_solution(sln, sln_timeout_ms, check_answers);
         }
+        let problem_time = problem_time_start.elapsed();
 
-        for (i, sln) in solutions.iter().enumerate() {
-            match sln.result {
-                SolutionResult::Correct => {
-                    count_solutions_succ += 1;
-                },
-                SolutionResult::Timeout => {},
-                _ => has_failure = true,
-            }
+        let (correct_count, total_count) = print_result(problem, &solutions, problem_time);
 
-            let pid = field_contect_adjust(sln.pid, i);
-            let title = field_contect_adjust(sln.title, i);
-            let result = color_result(&sln.result);
-            let cost = color_cost_time(sln.cost_ms);
 
-            println!("| {:>4} | {:<40} | {:<40} | {:^9} | {:>12} |",
-                pid, title, sln.solution, result, cost);
-            count_solutions += 1;
-        }
+        count_solutions_succ += correct_count;
+        count_solutions += total_count;
 
-        if !has_failure {
+        if correct_count > 0 {
             count_problems_succ += 1;
         }
         count_problems += 1;
     }
+
     let elapsed_time = start_time.elapsed().as_nanos() as f64 / 1_000_000.0;
     println!("{}", sepline);
 
@@ -267,7 +326,8 @@ fn do_run(pids: Vec<i64>, timeout_ms: u64, check_answers: bool, _: bool) {
     println!("Problems: {}/{} ({}%) , Solutions: {}/{}",
         problem_succ, problem_total, succ_rate,
         count_solutions_succ, count_solutions);
-    println!("Total time: {:.3} ms", elapsed_time);
+    let time_cost = format!("{:.3} ms", elapsed_time).yellow();
+    println!("Total time: {}", time_cost);
 }
 
 fn do_list(pids: Vec<i64>) {
