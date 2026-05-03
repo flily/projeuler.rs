@@ -357,7 +357,7 @@ fn do_list(pids: Vec<i64>) {
     let problems = problems::all_problems();
     let mut j = 0;
     for problem in problems {
-        if !pids.is_empty() && pids.contains(&problem.id) {
+        if !pids.is_empty() && !pids.contains(&problem.id) {
             continue;
         }
 
