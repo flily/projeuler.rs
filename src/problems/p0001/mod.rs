@@ -10,7 +10,7 @@ pub static INFO: std::sync::LazyLock<Problem> = std::sync::LazyLock::new(|| Prob
     solutions: vec![
         SolutionInfo {
             name: "naive",
-            entry: naive::solve_naive,
+            entry: naive::solve,
         },
     ],
 });

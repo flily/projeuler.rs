@@ -14,11 +14,11 @@ mod problems;
 enum Command {
     /// run solutions of problems
     Run {
-        /// timeout with measurement unit, e.g. "1s", "500ms". Default is "1s".
-        #[arg(short, long="timeout", name="TIMEOUT", default_value="1s")]
+        /// timeout with measurement unit, e.g. "1s", "500ms". Default is "500ms".
+        #[arg(short, long="timeout", name="TIMEOUT", default_value="500ms")]
         timeout_str: String,
         /// do not limit execution time
-        #[arg(long="no-timeout", default_value_t=false)]
+        #[arg(short='o', long="no-timeout", default_value_t=false)]
         no_timeout: bool,
         /// check answers after running
         #[arg(short, long="check", default_value_t=false)]
@@ -146,21 +146,36 @@ fn run_solution(run_result: &mut RunResult, timeout_ms: u64, check_answer: bool)
 
 }
 
+fn field_contect_adjust<T: ToString>(s: T, i: usize) -> String {
+    if i == 0 {
+        s.to_string()
+    } else {
+        " ".to_string()
+    }
+}
+
 fn do_run(pids: Vec<i64>, timeout_ms: u64, check_answers: bool, _: bool) {
     let sepline = "+".to_string()
         + &"-".repeat(4 + 2) + "+"      // PID
         + &"-".repeat(40 + 2) + "+"     // Title
-        + &"-".repeat(20 + 2) + "+"     // Solution
+        + &"-".repeat(40 + 2) + "+"     // Solution
         + &"-".repeat(9 + 2) + "+"      // Result
         + &"-".repeat(12 + 2) + "+"     // Time 12345.678 ms
     ;
 
     println!("{}", sepline);
-    println!("| {:^4} | {:^40} | {:^20} | {:^9} | {:^12} |",
+    println!("| {:^4} | {:^40} | {:^40} | {:^9} | {:^12} |",
         "PID", "Title", "Solution", "Result", "Time");
     println!("{}", sepline);
 
+    let mut count_problems = 0;
+    let mut count_problems_succ = 0;
+    let mut count_solutions = 0;
+    let mut count_solutions_succ = 0;
+    
+    let start_time = time::Instant::now();
     for problem in problems::all_problems().iter() {
+        let mut has_failure = false;
         if !pids.is_empty() && !pids.contains(&problem.id) {
             continue;
         }
@@ -171,13 +186,41 @@ fn do_run(pids: Vec<i64>, timeout_ms: u64, check_answers: bool, _: bool) {
             run_solution(sln, sln_timeout_ms, check_answers);
         }
 
-        for sln in solutions {
-            println!("| {:>4} | {:<40} | {:<20} | {:^9} | {:>9.3} ms |",
-                sln.pid, sln.title, sln.solution, solution_result_str(&sln.result), sln.cost_ms);
-        }
-    }
+        for (i, sln) in solutions.iter().enumerate() {
+            match sln.result {
+                SolutionResult::Correct => {
+                    count_solutions_succ += 1;
+                },
+                SolutionResult::Timeout => {},
+                _ => has_failure = true,
+            }
 
+            let pid = field_contect_adjust(sln.pid, i);
+            let title = field_contect_adjust(sln.title, i);
+
+            println!("| {:>4} | {:<40} | {:<40} | {:^9} | {:>9.3} ms |",
+                pid, title, sln.solution, solution_result_str(&sln.result), sln.cost_ms);
+            count_solutions += 1;
+        }
+
+        if !has_failure {
+            count_problems_succ += 1;
+        }
+        count_problems += 1;
+    }
+    let elapsed_time = start_time.elapsed().as_nanos() as f64 / 1_000_000.0;
     println!("{}", sepline);
+
+    let succ_rate = if count_problems > 0 {
+        (count_problems_succ as f64) / (count_problems as f64) * 100.0
+    } else {
+        0.0
+    };
+    
+    println!("Problems: {}/{} ({:.2}%) , Solutions: {}/{}",
+        count_problems_succ, count_problems, succ_rate,
+        count_solutions_succ, count_solutions);
+    println!("Total time: {:.3} ms", elapsed_time);
 }
 
 fn do_list(pids: Vec<i64>) {
