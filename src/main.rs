@@ -66,7 +66,7 @@ fn parse_duration(s: &str) -> Result<u64, String> {
 }
 
 #[derive(Clone)]
-enum SolutionResult {
+enum FinalResult {
     None,
     Correct,
     Wrong,
@@ -74,22 +74,43 @@ enum SolutionResult {
     Crash,
 }
 
-fn solution_result_str(result: &SolutionResult) -> &str {
-    match result {
-        SolutionResult::None => "-",
-        SolutionResult::Correct => "correct",
-        SolutionResult::Wrong => "wrong",
-        SolutionResult::Timeout => "timeout",
-        SolutionResult::Crash => "crash",
+impl FinalResult {
+    fn to_string(&self) -> &str {
+        match self {
+            FinalResult::None => "-",
+            FinalResult::Correct => "correct",
+            FinalResult::Wrong => "wrong",
+            FinalResult::Timeout => "timeout",
+            FinalResult::Crash => "crash",
+        }
+    }
+
+    fn color(&self) -> colored::Color {
+        match self {
+            FinalResult::Correct => Color::Green,
+            FinalResult::Wrong => Color::Red,
+            FinalResult::Timeout => Color::Yellow,
+            FinalResult::Crash => Color::Red,
+            _ => Color::White,
+        }
+    }
+
+    fn color_string(&self) -> colored::ColoredString {
+        self.to_string().color(self.color())
+    }
+
+    fn color_on(&self, s: &str) -> colored::ColoredString {
+        s.color(self.color())
     }
 }
+
 
 struct RunResult {
     solution: &'static str,
     entry: common::Solution,
     answer: Option<i64>,
     got: Option<i64>,
-    result: SolutionResult,
+    result: FinalResult,
     cost_ms: f64,
 }
 
@@ -105,7 +126,7 @@ fn make_run_results(info: &common::Problem) -> Vec<RunResult> {
         entry: sln.entry,
         answer: Some(info.answer),
         got: None,
-        result: SolutionResult::None, // default to None, will be updated after running
+        result: FinalResult::None, // default to None, will be updated after running
         cost_ms: 0.0,
     }).collect()
 }
@@ -132,39 +153,20 @@ fn run_solution(run_result: &mut RunResult, timeout_ms: u64, check_answer: bool)
             run_result.got = Some(got);
             if check_answer {
                 run_result.result = if run_result.check(got) {
-                    SolutionResult::Correct
+                    FinalResult::Correct
                 } else {
-                    SolutionResult::Wrong
+                    FinalResult::Wrong
                 };
             }
         }
-        Ok(Err(_)) => run_result.result = SolutionResult::Crash,
-        Err(mpsc::RecvTimeoutError::Timeout) => run_result.result = SolutionResult::Timeout,
-        Err(mpsc::RecvTimeoutError::Disconnected) => run_result.result = SolutionResult::Crash,
+        Ok(Err(_)) => run_result.result = FinalResult::Crash,
+        Err(mpsc::RecvTimeoutError::Timeout) => run_result.result = FinalResult::Timeout,
+        Err(mpsc::RecvTimeoutError::Disconnected) => run_result.result = FinalResult::Crash,
     }
     run_result.cost_ms = t1.elapsed().as_nanos() as f64 / 1_000_000.0;
 
 }
 
-fn field_contect_adjust<T: ToString>(s: T, i: usize) -> String {
-    if i == 0 {
-        s.to_string()
-    } else {
-        " ".to_string()
-    }
-}
-
-fn color_result(result: &SolutionResult) -> colored::ColoredString {
-    let s = solution_result_str(result).to_string();
-
-    match result {
-        SolutionResult::Correct => s.green(),
-        SolutionResult::Timeout => s.yellow(),
-        SolutionResult::Wrong => s.red(),
-        SolutionResult::Crash => s.red(),
-        _ => s.normal(),
-    }
-}
 
 fn color_cost_time(cost_ms: f64, base: i32) -> colored::ColoredString {
     let s = format!("{:.3} ms", cost_ms);
@@ -183,30 +185,32 @@ fn color_cost_time(cost_ms: f64, base: i32) -> colored::ColoredString {
     }
 }
 
-fn print_problem_result(problem: &common::Problem, problem_result: SolutionResult, cost_ms: f64) {
+fn print_problem_result(problem: &common::Problem, problem_result: FinalResult, cost_ms: f64) {
+    let pid = problem_result.color_on(&problem.id.to_string());
+    let title = problem_result.color_on(&problem.title);
     let cost = color_cost_time(cost_ms, problem.solutions.len() as i32);
-    let result = color_result(&problem_result);
-    let solutions = format!("+-- {} solutions", problem.solutions.len()).cyan();
+    let result = problem_result.color_string();
+    let solutions = format!("+-- {} solutions", problem.solutions.len());
     println!("| {:>4} | {:<40} | {:<40} | {:^9} | {:>12} |",
-        problem.id, problem.title, solutions, result, cost);
+        pid, title, solutions, result, cost);
 }
 
 fn print_solution_result(run_result: &RunResult) {
-    let result = color_result(&run_result.result);
+    let result = run_result.result.color_string();
     let cost = color_cost_time(run_result.cost_ms, 1);
-    let solution = format!("+- {}", run_result.solution);
+    let solution = format!("+- {}", run_result.solution).color(run_result.result.color());
 
     println!("| {:>4} | {:<40} | {:<40} | {:^9} | {:>12} |",
         "", "", solution, result, cost);
 }
 
-fn make_problem_result(solutions: &Vec<RunResult>) -> SolutionResult {
-    let mut result = SolutionResult::Timeout;
+fn make_problem_result(solutions: &Vec<RunResult>) -> FinalResult {
+    let mut result = FinalResult::Timeout;
     for sln in solutions {
         match sln.result {
-            SolutionResult::Timeout => {}
-            SolutionResult::Correct => {
-                result = SolutionResult::Correct;
+            FinalResult::Timeout => {}
+            FinalResult::Correct => {
+                result = FinalResult::Correct;
             }
             _ => {
                 result = sln.result.clone();
@@ -219,12 +223,14 @@ fn make_problem_result(solutions: &Vec<RunResult>) -> SolutionResult {
 }
 
 fn print_one_solution_problem(problem: &common::Problem, run_result: &RunResult) {
-    let result = color_result(&run_result.result);
+    let pid = run_result.result.color_on(&problem.id.to_string());
+    let title = run_result.result.color_on(&problem.title);
+    let result = run_result.result.color_string();
     let cost = color_cost_time(run_result.cost_ms, 1);
-    let solution = format!("- {}", run_result.solution);
+    let solution = run_result.result.color_on(&format!("- {}", run_result.solution));
 
     println!("| {:>4} | {:<40} | {:<40} | {:^9} | {:>12} |",
-        problem.id, problem.title, solution, result, cost);
+        pid, title, solution, result, cost);
 }
 
 fn print_result(problem: &common::Problem, solutions: &Vec<RunResult>, cost: time::Duration) -> (i32, i32){
@@ -233,7 +239,7 @@ fn print_result(problem: &common::Problem, solutions: &Vec<RunResult>, cost: tim
         print_one_solution_problem(problem, sln);
 
         let c = match sln.result {
-            SolutionResult::Correct => (1, 1),
+            FinalResult::Correct => (1, 1),
             _ => (0, 1),
         };
 
@@ -247,7 +253,7 @@ fn print_result(problem: &common::Problem, solutions: &Vec<RunResult>, cost: tim
     let mut correct_count = 0;
     for sln in solutions {
         match sln.result {
-            SolutionResult::Correct => correct_count += 1,
+            FinalResult::Correct => correct_count += 1,
             _ => {}
         }
         print_solution_result(sln);
@@ -345,12 +351,10 @@ fn do_list(pids: Vec<i64>) {
     let mut count_solutions = 0;
 
     let colors = vec![
-        Color::Blue,
         Color::Yellow,
         Color::Green,
         Color::Magenta,
         Color::Cyan,
-        Color::White,
     ];
     let problems = problems::all_problems();
     let mut j = 0;
@@ -359,11 +363,27 @@ fn do_list(pids: Vec<i64>) {
             continue;
         }
 
-        for (i, sln) in problem.solutions.iter().enumerate() {
-            let pid = field_contect_adjust(problem.id, i).blue();
-            let title = field_contect_adjust(problem.title, i).green();
-            let name = sln.name.color(colors[j % colors.len()]);
+        let pid = problem.id.to_string().blue();
+        let title = problem.title.to_string().green();
+
+        if problem.solutions.len() == 1 {
+            let sln = &problem.solutions[0];
+            let sln_name = format!("- {}", sln.name);
+            let name = sln_name.color(colors[j % colors.len()]);
             println!("| {:>4} | {:<40} | {:<40} |", pid, title, name);
+            count_solutions += 1;
+            j += 1;
+            continue;
+        }
+
+        let sln_first = format!("+-- {} solutions", problem.solutions.len());
+        println!("| {:>4} | {:<40} | {:<40} |", pid, title, sln_first);
+        j = 0;
+
+        for sln in problem.solutions.iter() {
+            let sln_name = format!("+- {}", sln.name);
+            let name = sln_name.color(colors[j % colors.len()]);
+            println!("| {:>4} | {:<40} | {:<40} |", "", "", name);
             count_solutions += 1;
             j += 1;
         }
