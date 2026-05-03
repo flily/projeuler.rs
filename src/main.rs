@@ -4,6 +4,8 @@ use std::time;
 
 use clap::{Parser, Subcommand};
 
+use crate::common::Checkable;
+
 mod common;
 mod problems;
 
@@ -80,8 +82,8 @@ fn solution_result_str(result: &SolutionResult) -> &str {
 
 struct RunResult {
     pid: i64,
-    title: String,
-    solution: String,
+    title: &'static str,
+    solution: &'static str,
     entry: common::Solution,
     answer: Option<i64>,
     got: Option<i64>,
@@ -89,11 +91,17 @@ struct RunResult {
     cost_ms: f64,
 }
 
+impl Checkable for RunResult {
+    fn check(&self, result: i64) -> bool {
+        result == self.answer.unwrap()
+    }
+}
+
 fn make_run_results(info: &common::Problem) -> Vec<RunResult> {
     info.solutions.iter().map(|sln| RunResult {
         pid: info.id,
-        title: info.title.clone(),
-        solution: sln.name.clone(),
+        title: info.title,
+        solution: sln.name,
         entry: sln.entry,
         answer: Some(info.answer),
         got: None,
@@ -112,11 +120,18 @@ fn run_solution(run_result: &mut RunResult, timeout_ms: u64, check_answer: bool)
         let _ = tx.send(result);
     });
     let timeout = time::Duration::from_millis(timeout_ms);
-    match rx.recv_timeout(timeout) {
+
+    let response = if timeout_ms == 0 {
+        rx.recv().map_err(|e| e.into())
+    } else {
+        rx.recv_timeout(timeout).map_err(|e| e.into())
+    };
+
+    match response {
         Ok(Ok(got)) => {
             run_result.got = Some(got);
             if check_answer {
-                run_result.result = if got == run_result.answer.unwrap() {
+                run_result.result = if run_result.check(got) {
                     SolutionResult::Correct
                 } else {
                     SolutionResult::Wrong
@@ -152,7 +167,8 @@ fn do_run(pids: Vec<i64>, timeout_ms: u64, check_answers: bool, _: bool) {
 
         let mut solutions = make_run_results(problem);
         for sln in solutions.iter_mut() {
-            run_solution(sln, timeout_ms, check_answers);
+            let sln_timeout_ms = timeout_ms + problem.extra_time_ms.as_millis() as u64;
+            run_solution(sln, sln_timeout_ms, check_answers);
         }
 
         for sln in solutions {

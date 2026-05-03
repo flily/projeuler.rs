@@ -16,11 +16,11 @@ pub fn solve_naive() -> i64 {
 mod tests {
     use crate::common::Checkable;
 
-    use super::super::info::INFO;
+    use super::super::INFO;
     use super::solve_naive;
 
     #[test]
     fn test_solve_naive() {
-        assert!(INFO.check(solve_naive));
+        assert!(INFO.check(solve_naive()));
     }
 }
