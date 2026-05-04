@@ -212,8 +212,8 @@ fn print_problem_result(problem: &common::Problem, problem_result: FinalResult, 
     let result = problem_result.color_string();
     let solutions = format!("+-- {} solutions", problem.solutions.len());
     println!(
-        "| {:>4} | {:<40} | {:<40} | {:^9} | {:>12} |",
-        pid, title, solutions, result, cost,
+        "| {:>4} | {:<40} | {:<40} | {:^14} | {:^9} | {:>12} |",
+        pid, title, solutions, "", result, cost,
     );
 }
 
@@ -221,10 +221,15 @@ fn print_solution_result(run_result: &RunResult) {
     let result = run_result.result.color_string();
     let cost = color_cost_time(run_result.cost_ms, 1);
     let solution = format!("+- {}", run_result.solution).color(run_result.result.color());
+    let answer = if let Some(got) = run_result.got {
+        got.to_string().color(run_result.result.color())
+    } else {
+        "NO RESULT".red()
+    };
 
     println!(
-        "| {:>4} | {:<40} | {:<40} | {:^9} | {:>12} |",
-        "", "", solution, result, cost,
+        "| {:>4} | {:<40} | {:<40} | {:^14} | {:^9} | {:>12} |",
+        "", "", solution, answer, result, cost,
     );
 }
 
@@ -254,10 +259,15 @@ fn print_one_solution_problem(problem: &common::Problem, run_result: &RunResult)
     let solution = run_result
         .result
         .color_on(&format!("- {}", run_result.solution));
+    let answer = if let Some(got) = run_result.got {
+        got.to_string().color(run_result.result.color())
+    } else {
+        "NO RESULT".red()
+    };
 
     println!(
-        "| {:>4} | {:<40} | {:<40} | {:^9} | {:>12} |",
-        pid, title, solution, result, cost,
+        "| {:>4} | {:<40} | {:<40} | {:^14} | {:^9} | {:>12} |",
+        pid, title, solution, answer, result, cost,
     );
 }
 
@@ -298,14 +308,15 @@ fn do_run(pids: Vec<i64>, timeout_ms: u64, check_answers: bool) {
         + &"-".repeat(4 + 2) + "+"      // PID
         + &"-".repeat(40 + 2) + "+"     // Title
         + &"-".repeat(40 + 2) + "+"     // Solution
+        + &"-".repeat(14 + 2) + "+"     // Answer
         + &"-".repeat(9 + 2) + "+"      // Result
         + &"-".repeat(12 + 2) + "+"     // Time 12345.678 ms
     ;
 
     println!("{}", sepline);
     println!(
-        "| {:>4} | {:<40} | {:<40} | {:^9} | {:>12} |",
-        "PID", "Title", "Solution", "Result", "Time",
+        "| {:>4} | {:<40} | {:<40} | {:^14} | {:^9} | {:>12} |",
+        "PID", "Title", "Solution", "Answer", "Result", "Time",
     );
     println!("{}", sepline);
 
