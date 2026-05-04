@@ -13,7 +13,6 @@ mod common;
 mod problems;
 mod management;
 
-
 #[derive(Subcommand)]
 enum Command {
     /// run solutions of problems
@@ -457,8 +456,6 @@ impl Problem {
 }
 
 fn do_add(pid: i64, title: &str, answer: i64, sln_names: Vec<String>, dry_run: bool) {
-    fn placeholder() -> i64 { 0 }
-
     let title_static: &'static str = Box::leak(Box::new(title.to_string()));
     let solutions: Vec<SolutionInfo> = sln_names
         .iter()
@@ -466,7 +463,7 @@ fn do_add(pid: i64, title: &str, answer: i64, sln_names: Vec<String>, dry_run: b
             let name_static: &'static str = Box::leak(Box::new(name.clone()));
             SolutionInfo {
                 name: name_static,
-                entry: placeholder,
+                entry: || 0 ,
             }
         })
         .collect();
@@ -479,7 +476,7 @@ fn do_add(pid: i64, title: &str, answer: i64, sln_names: Vec<String>, dry_run: b
         solutions,
     };
 
-    let action_list = problem.do_add_actions(None,true).unwrap();
+    let action_list = problem.do_add_actions(None, true).unwrap();
     println!(" {:>12}: {}", "Problem ID", pid.to_string().green());
     println!(" {:>12}: {}", "Title", title.yellow());
     println!(" {:>12}: {}", "Answer", answer.to_string().magenta());
@@ -537,9 +534,16 @@ fn do_delete(pids: Vec<i64>) {
         let problem = Problem::from_id(*pid);
         let action_result = problem.do_remove_actions(Some(callback), false);
         if action_result.is_err() {
-            println!("failed to delete problem {}: {}", pid.to_string().green().bold(), action_result.err().unwrap());
+            println!(
+                "failed to delete problem {}: {}",
+                pid.to_string().green().bold(),
+                action_result.err().unwrap(),
+            );
         } else {
-            println!("problem {} deleted successfully", pid.to_string().green().bold());
+            println!(
+                "problem {} deleted successfully",
+                pid.to_string().green().bold(),
+            );
         }
     }
 }

@@ -135,8 +135,16 @@ pub trait ProblemManagement {
     fn create_problem_mod(&self) -> Result<(), io::Error>;
     fn create_solution_file(&self, sln_name: &str) -> Result<(), io::Error>;
 
-    fn do_add_actions(&self, callback: Option<FileActionCallback>, dry_run: bool) -> Result<Vec<(FileAction, String)>, io::Error>;
-    fn do_remove_actions(&self, callback: Option<FileActionCallback>, dry_run: bool) -> Result<Vec<(FileAction, String)>, io::Error>;
+    fn do_add_actions(
+        &self,
+        callback: Option<FileActionCallback>,
+        dry_run: bool,
+    ) -> Result<Vec<(FileAction, String)>, io::Error>;
+    fn do_remove_actions(
+        &self,
+        callback: Option<FileActionCallback>,
+        dry_run: bool,
+    ) -> Result<Vec<(FileAction, String)>, io::Error>;
 }
 
 static MODNAME_FIRST: [&str; 1] = ["naive"];
@@ -222,12 +230,17 @@ impl ProblemManagement for Problem {
             "pub fn solve() -> i64 {",
             "    0",
             "}",
-        ].join("\n");
+        ]
+        .join("\n");
         file.write_all(content.as_bytes())?;
         Ok(())
     }
 
-    fn do_add_actions(&self, callback: Option<FileActionCallback>, dry_run: bool) -> Result<Vec<(FileAction, String)>, io::Error> {
+    fn do_add_actions(
+        &self,
+        callback: Option<FileActionCallback>,
+        dry_run: bool,
+    ) -> Result<Vec<(FileAction, String)>, io::Error> {
         let mut result = Vec::new();
         let problem_dir = self.dir_name();
 
@@ -289,7 +302,11 @@ impl ProblemManagement for Problem {
         Ok(result)
     }
 
-    fn do_remove_actions(&self, callback: Option<FileActionCallback>, dry_run: bool) -> Result<Vec<(FileAction, String)>, io::Error> {
+    fn do_remove_actions(
+        &self,
+        callback: Option<FileActionCallback>,
+        dry_run: bool,
+    ) -> Result<Vec<(FileAction, String)>, io::Error> {
         let mut result = Vec::new();
         let problem_dir = self.dir_name();
 
