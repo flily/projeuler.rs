@@ -1,3 +1,4 @@
+use std::io::{self, BufRead, Write};
 use std::sync::mpsc;
 use std::thread;
 use std::time;
@@ -5,14 +6,18 @@ use std::time;
 use clap::{Parser, Subcommand};
 use colored::{Color, Colorize};
 
-use crate::common::Checkable;
+use crate::common::{Checkable, Problem, SolutionInfo};
+use management::ProblemManagement;
 
 mod common;
 mod problems;
+mod management;
+
 
 #[derive(Subcommand)]
 enum Command {
     /// run solutions of problems
+    #[command(visible_aliases = ["r"])]
     Run {
         /// timeout with measurement unit, e.g. "1s", "500ms". Default is "500ms".
         #[arg(short = 't', long = "timeout", name = "TIMEOUT", default_value = "500ms")]
@@ -29,7 +34,32 @@ enum Command {
         pids: Vec<i64>,
     },
     /// list problems
+    #[command(visible_aliases = ["l", "ls"])]
     List { pids: Vec<i64> },
+    /// add a new problem and generate template code
+    #[command(visible_aliases = ["a", "n", "new"])]
+    Add {
+        /// optional problem title
+        #[arg(short = 'n', long = "title", default_value = "")]
+        title: String,
+        /// known answer for the problem
+        #[arg(short = 'a', long = "answer", default_value_t = 0)]
+        answer: i64,
+        /// do not generate a solution file for the problem
+        #[arg(short = 'd', long = "dry-run", default_value_t = false)]
+        dry_run: bool,
+        /// problem ID (e.g. 100)
+        pid: i64,
+        /// names of solution files to generate (e.g. "naive", "optimized")
+        solutions: Vec<String>,
+    },
+    /// delete solution code for one or more problems
+    #[command(visible_aliases = ["del", "rm"])] // don't assign short alias for delete
+    Delete {
+        /// problem IDs to delete
+        #[arg(required = true)]
+        pids: Vec<i64>,
+    },
 }
 
 #[derive(clap::Parser)]
@@ -396,6 +426,124 @@ fn do_list(pids: Vec<i64>) {
     );
 }
 
+fn action_confirm(action: &str, accept_word: &str) -> bool {
+    let mut result = true;
+
+    print!("Type \"{}\" to {}: ", accept_word.green().bold(), action);
+    io::stdout().flush().unwrap();
+
+    let stdin = io::stdin();
+    let mut line = String::new();
+    stdin.lock().read_line(&mut line).unwrap();
+
+    if line.trim() != accept_word {
+        println!("aborted");
+        result = false;
+    }
+
+    result
+}
+
+impl Problem {
+    fn from_id(pid: i64) -> Problem {
+        Problem {
+            id: pid,
+            title: "",
+            answer: 0,
+            extra_time_ms: std::time::Duration::from_millis(0),
+            solutions: vec![],
+        }
+    }
+}
+
+fn do_add(pid: i64, title: &str, answer: i64, sln_names: Vec<String>, dry_run: bool) {
+    fn placeholder() -> i64 { 0 }
+
+    let title_static: &'static str = Box::leak(Box::new(title.to_string()));
+    let solutions: Vec<SolutionInfo> = sln_names
+        .iter()
+        .map(|name| {
+            let name_static: &'static str = Box::leak(Box::new(name.clone()));
+            SolutionInfo {
+                name: name_static,
+                entry: placeholder,
+            }
+        })
+        .collect();
+
+    let problem = Problem {
+        id: pid,
+        title: title_static,
+        answer,
+        extra_time_ms: std::time::Duration::from_millis(0),
+        solutions,
+    };
+
+    let action_list = problem.do_add_actions(None,true).unwrap();
+    println!(" {:>12}: {}", "Problem ID", pid.to_string().green());
+    println!(" {:>12}: {}", "Title", title.yellow());
+    println!(" {:>12}: {}", "Answer", answer.to_string().magenta());
+    println!(" {:>12}: {}", "Solutions", sln_names.join(", "));
+    println!();
+
+    for (action, path) in action_list.iter() {
+        println!("{:>8} {}", action.to_string(), path);
+    }
+    println!();
+
+    if dry_run || action_list.is_empty() {
+        return;
+    }
+
+    if !action_confirm("create template files showed above", "yes") {
+        return;
+    }
+
+    let callback = |action: &management::FileAction, path: &str| {
+        println!("{:>8} {}", action.finish_string(), path);
+    };
+    let action_result = problem.do_add_actions(Some(callback), false);
+    if action_result.is_err() {
+        println!("failed to create problem: {}", action_result.err().unwrap());
+    } else {
+        println!("problem {} added successfully", pid.to_string().green().bold());
+    }
+}
+
+fn do_delete(pids: Vec<i64>) {
+    for pid in &pids {
+        let problem = Problem::from_id(*pid);
+        let action_list = problem.do_remove_actions(None, true).unwrap();
+        if action_list.is_empty() {
+            let target = format!("problem {}", pid.to_string().green().bold());
+            println!("{:>8} {}", "SKIP".yellow().bold(), target);
+            continue;
+        }
+
+        for (action, path) in action_list.iter() {
+            println!("{:>8} {}", action.to_string(), path);
+        }
+    }
+
+    if !action_confirm("delete files showed above", "yes") {
+        return;
+    }
+
+    let callback = |action: &management::FileAction, path: &str| {
+        println!("{:>8} {}", action.finish_string(), path);
+    };
+
+    for pid in &pids {
+        let problem = Problem::from_id(*pid);
+        let action_result = problem.do_remove_actions(Some(callback), false);
+        if action_result.is_err() {
+            println!("failed to delete problem {}: {}", pid.to_string().green().bold(), action_result.err().unwrap());
+        } else {
+            println!("problem {} deleted successfully", pid.to_string().green().bold());
+        }
+    }
+}
+
 fn main() {
     let args = Args::parse();
 
@@ -426,6 +574,29 @@ fn main() {
         }
 
         Command::List { pids } => do_list(pids),
+
+        Command::Delete { pids } => do_delete(pids),
+
+        Command::Add {
+            pid,
+            title,
+            answer,
+            dry_run,
+            solutions,
+        } => {
+            let title_str = if title.is_empty() {
+                format!("Problem {}", pid)
+            } else {
+                title
+            };
+
+            let mut slns = solutions.clone();
+            if solutions.is_empty() {
+                slns.push("naive".to_string());
+            }
+
+            do_add(pid, &title_str, answer, slns, dry_run);
+        }
     }
 }
 
