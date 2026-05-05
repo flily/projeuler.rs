@@ -6,7 +6,7 @@ use colored::Colorize;
 
 use regex::Regex;
 
-use crate::common::Problem;
+use crate::common::{Problem, SolutionInfo};
 
 pub enum FileAction {
     MakeDir,
@@ -136,7 +136,7 @@ pub trait ProblemManagement {
     fn create_solution_file(&self, sln_name: &str) -> Result<(), io::Error>;
 
     fn do_add_actions(
-        &self,
+        &mut self,
         callback: Option<FileActionCallback>,
         dry_run: bool,
     ) -> Result<i32, io::Error>;
@@ -237,7 +237,7 @@ impl ProblemManagement for Problem {
     }
 
     fn do_add_actions(
-        &self,
+        &mut self,
         callback: Option<FileActionCallback>,
         dry_run: bool,
     ) -> Result<i32, io::Error> {
@@ -267,6 +267,13 @@ impl ProblemManagement for Problem {
                 cb(&FileAction::CreateMod, &problem_mod_filename);
             }
 
+            if self.solutions.is_empty() {
+                self.solutions.push(SolutionInfo {
+                    name: "naive",
+                    entry: || 0,
+                });
+            }
+
             if !dry_run {
                 self.create_problem_mod()?;
             }
@@ -284,18 +291,6 @@ impl ProblemManagement for Problem {
                 if !dry_run {
                     self.create_solution_file(sln.name)?;
                 }
-            }
-        }
-
-        if self.solutions.is_empty() && create_mod {
-            let sln_name = "naive";
-            let sln_filename = self.solution_filename(sln_name);
-            count += 1;
-            if let Some(cb) = callback {
-                cb(&FileAction::CreateFile, &sln_filename);
-            }
-            if !dry_run {
-                self.create_solution_file(sln_name)?;
             }
         }
 

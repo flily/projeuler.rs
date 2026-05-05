@@ -469,7 +469,7 @@ fn do_list(pids: Vec<i64>) {
         j = 0;
 
         for sln in problem.solutions.iter() {
-            let sln_name = format!("+- {}", sln.name);
+            let sln_name = format!("+ {}", sln.name);
             let name = sln_name.color(colors[j % colors.len()]);
             println!("| {:>4} | {:<40} | {:<40} |", "", "", name);
             count_solutions += 1;
@@ -533,7 +533,7 @@ fn do_add(pid: i64, title: &str, answer: i64, sln_names: &[String], dry_run: boo
         })
         .collect();
 
-    let problem = Problem {
+    let mut problem = Problem {
         id: pid,
         title: title_static,
         answer,
