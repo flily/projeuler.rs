@@ -54,6 +54,10 @@ enum Command {
     /// delete solution code for one or more problems
     #[command(visible_aliases = ["del", "rm"])] // don't assign short alias for delete
     Delete {
+        /// delete all files related to the problem, and update problems.rs. If not set, only
+        /// remove index in problems.rs and keep the solution files.
+        #[arg(long = "full", default_value_t = false)]
+        full_delete: bool,
         /// problem IDs to delete
         #[arg(required = true)]
         pids: Vec<i64>,
@@ -156,11 +160,18 @@ fn make_run_results(info: &common::Problem) -> Vec<RunResult> {
         .collect()
 }
 
+fn simple_run_solution(run_result: &mut RunResult) {
+    let entry = run_result.entry;
+
+    let t1 = time::Instant::now();
+    entry();
+    run_result.cost_ms = t1.elapsed().as_nanos() as f64 / 1_000_000.0;
+}
+
 async fn run_solution(run_result: &mut RunResult, timeout_ms: u64, check_answer: bool) {
     let entry = run_result.entry;
 
     let t1 = time::Instant::now();
-
     let task = tokio::task::spawn_blocking(move || {
         std::panic::catch_unwind(entry)
     });
@@ -181,7 +192,6 @@ async fn run_solution(run_result: &mut RunResult, timeout_ms: u64, check_answer:
             Err(_) => Err(true),
         }
     };
-
     run_result.cost_ms = t1.elapsed().as_nanos() as f64 / 1_000_000.0;
 
     match response {
@@ -205,8 +215,12 @@ async fn run_solution(run_result: &mut RunResult, timeout_ms: u64, check_answer:
 }
 
 fn color_cost_time(cost_ms: f64, timeout: f64) -> colored::ColoredString {
+    if cost_ms < 0.001 {
+        return format!(">>  {:4.3} us", cost_ms * 1000.0).green();
+    }
+
     let total_timeout = if timeout > 0.0 { timeout } else { 500.0 };
-    let s = format!("{:.3} ms", cost_ms);
+    let s = format!("{:8.3} ms", cost_ms);
     let prop = cost_ms / total_timeout;
 
     if prop < 0.1 {
@@ -348,7 +362,7 @@ fn print_result(
 }
 
 fn do_run(pids: Vec<i64>, timeout_ms: u64, check_answers: bool) {
-    let rt = runtime::Builder::new_current_thread()
+    let rt = runtime::Builder::new_multi_thread()
         .enable_time()
         .build()
         .expect("failed to create tokio runtime");
@@ -384,6 +398,16 @@ fn do_run(pids: Vec<i64>, timeout_ms: u64, check_answers: bool) {
         for sln in solutions.iter_mut() {
             let sln_timeout_ms = timeout_ms + problem.extra_time_ms.as_millis() as u64;
             rt.block_on(run_solution(sln, sln_timeout_ms, check_answers));
+            // run correct solutions again to get more accurate time cost.
+            match sln.result {
+                FinalResult::Correct => {
+                    // only solutions use very short time can make big difference.
+                    if sln.cost_ms < 5.0 {
+                        simple_run_solution(sln);
+                    }
+                }
+                _ => {}
+            }
         }
         let problem_time = problem_time_start.elapsed();
 
@@ -569,10 +593,10 @@ fn do_add(pid: i64, title: &str, answer: i64, sln_names: &[String], dry_run: boo
     }
 }
 
-fn do_delete(pids: Vec<i64>) {
+fn do_delete(pids: Vec<i64>, full_delete: bool) {
     for pid in &pids {
         let problem = Problem::from_id(*pid);
-        let action_list = problem.do_remove_actions(Some(print_action), true).unwrap();
+        let action_list = problem.do_remove_actions(Some(print_action), full_delete, true).unwrap();
         if action_list <= 0 {
             let target = format!("problem {}", pid.to_string().green().bold());
             println!("{:>8} {}", "SKIP".yellow().bold(), target);
@@ -590,7 +614,7 @@ fn do_delete(pids: Vec<i64>) {
 
     for pid in &pids {
         let problem = Problem::from_id(*pid);
-        let action_result = problem.do_remove_actions(Some(callback), false);
+        let action_result = problem.do_remove_actions(Some(callback), full_delete, false);
         if action_result.is_err() {
             println!(
                 "failed to delete problem {}: {}",
@@ -637,7 +661,9 @@ fn main() {
 
         Command::List { pids } => do_list(pids),
 
-        Command::Delete { pids } => do_delete(pids),
+        Command::Delete {
+            pids,
+            full_delete } => do_delete(pids, full_delete),
 
         Command::Add {
             pid,

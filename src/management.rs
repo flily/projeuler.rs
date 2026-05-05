@@ -143,6 +143,7 @@ pub trait ProblemManagement {
     fn do_remove_actions(
         &self,
         callback: Option<FileActionCallback>,
+        full_delete: bool,
         dry_run: bool,
     ) -> Result<i32, io::Error>;
 }
@@ -230,6 +231,7 @@ impl ProblemManagement for Problem {
             "pub fn solve() -> i64 {",
             "    0",
             "}",
+            "",
         ]
         .join("\n");
         file.write_all(content.as_bytes())?;
@@ -313,6 +315,7 @@ impl ProblemManagement for Problem {
     fn do_remove_actions(
         &self,
         callback: Option<FileActionCallback>,
+        full_delete: bool,
         dry_run: bool,
     ) -> Result<i32, io::Error> {
         let mut count = 0;
@@ -330,6 +333,10 @@ impl ProblemManagement for Problem {
                 index.remove(self.id);
                 index.write(&index_filename)?;
             }
+        }
+
+        if !full_delete {
+            return Ok(count);
         }
 
         // check problem directory
