@@ -494,7 +494,11 @@ impl Problem {
     }
 }
 
-fn do_add(pid: i64, title: &str, answer: i64, sln_names: Vec<String>, dry_run: bool) {
+fn print_action(action: &management::FileAction, path: &str) {
+    println!("{:>8} {}", action.to_string(), path);
+}
+
+fn do_add(pid: i64, title: &str, answer: i64, sln_names: &[String], dry_run: bool) {
     let title_static: &'static str = Box::leak(Box::new(title.to_string()));
     let solutions: Vec<SolutionInfo> = sln_names
         .iter()
@@ -515,19 +519,16 @@ fn do_add(pid: i64, title: &str, answer: i64, sln_names: Vec<String>, dry_run: b
         solutions,
     };
 
-    let action_list = problem.do_add_actions(None, true).unwrap();
     println!(" {:>12}: {}", "Problem ID", pid.to_string().green());
     println!(" {:>12}: {}", "Title", title.yellow());
     println!(" {:>12}: {}", "Answer", answer.to_string().magenta());
     println!(" {:>12}: {}", "Solutions", sln_names.join(", "));
     println!();
 
-    for (action, path) in action_list.iter() {
-        println!("{:>8} {}", action.to_string(), path);
-    }
+    let action_count = problem.do_add_actions(Some(print_action), true).unwrap();
     println!();
 
-    if dry_run || action_list.is_empty() {
+    if dry_run || action_count <= 0 {
         return;
     }
 
@@ -549,15 +550,11 @@ fn do_add(pid: i64, title: &str, answer: i64, sln_names: Vec<String>, dry_run: b
 fn do_delete(pids: Vec<i64>) {
     for pid in &pids {
         let problem = Problem::from_id(*pid);
-        let action_list = problem.do_remove_actions(None, true).unwrap();
-        if action_list.is_empty() {
+        let action_list = problem.do_remove_actions(Some(print_action), true).unwrap();
+        if action_list <= 0 {
             let target = format!("problem {}", pid.to_string().green().bold());
             println!("{:>8} {}", "SKIP".yellow().bold(), target);
             continue;
-        }
-
-        for (action, path) in action_list.iter() {
-            println!("{:>8} {}", action.to_string(), path);
         }
     }
 
@@ -633,12 +630,7 @@ fn main() {
                 title
             };
 
-            let mut slns = solutions.clone();
-            if solutions.is_empty() {
-                slns.push("naive".to_string());
-            }
-
-            do_add(pid, &title_str, answer, slns, dry_run);
+            do_add(pid, &title_str, answer, &solutions, dry_run);
         }
     }
 }

@@ -139,12 +139,12 @@ pub trait ProblemManagement {
         &self,
         callback: Option<FileActionCallback>,
         dry_run: bool,
-    ) -> Result<Vec<(FileAction, String)>, io::Error>;
+    ) -> Result<i32, io::Error>;
     fn do_remove_actions(
         &self,
         callback: Option<FileActionCallback>,
         dry_run: bool,
-    ) -> Result<Vec<(FileAction, String)>, io::Error>;
+    ) -> Result<i32, io::Error>;
 }
 
 static MODNAME_FIRST: [&str; 1] = ["naive"];
@@ -240,19 +240,19 @@ impl ProblemManagement for Problem {
         &self,
         callback: Option<FileActionCallback>,
         dry_run: bool,
-    ) -> Result<Vec<(FileAction, String)>, io::Error> {
-        let mut result = Vec::new();
+    ) -> Result<i32, io::Error> {
+        let mut count = 0;
         let problem_dir = self.dir_name();
 
         // check problem directory
         let problem_dir_path = Path::new(&problem_dir);
         if !problem_dir_path.exists() {
-            result.push((FileAction::MakeDir, problem_dir.clone()));
-            if !dry_run {
-                if let Some(cb) = callback {
-                    cb(&FileAction::MakeDir, &problem_dir);
-                }
+            count += 1;
+            if let Some(cb) = callback {
+                cb(&FileAction::MakeDir, &problem_dir);
+            }
 
+            if !dry_run {
                 self.create_problem_directory()?;
             }
         }
@@ -260,13 +260,14 @@ impl ProblemManagement for Problem {
         // check mod.rs
         let problem_mod_filename = self.mod_filename();
         let problem_mod_path = Path::new(&problem_mod_filename);
-        if !problem_mod_path.exists() {
-            result.push((FileAction::CreateMod, problem_mod_filename.clone()));
-            if !dry_run {
-                if let Some(cb) = callback {
-                    cb(&FileAction::CreateMod, &problem_mod_filename);
-                }
+        let create_mod = !problem_mod_path.exists();
+        if create_mod {
+            count += 1;
+            if let Some(cb) = callback {
+                cb(&FileAction::CreateMod, &problem_mod_filename);
+            }
 
+            if !dry_run {
                 self.create_problem_mod()?;
             }
         }
@@ -276,49 +277,61 @@ impl ProblemManagement for Problem {
             let sln_filename = self.solution_filename(sln.name);
             let sln_path = Path::new(&sln_filename);
             if !sln_path.exists() {
-                result.push((FileAction::CreateFile, sln.name.to_string()));
+                count += 1;
+                if let Some(cb) = callback {
+                    cb(&FileAction::CreateFile, &sln_filename);
+                }
                 if !dry_run {
-                    if let Some(cb) = callback {
-                        cb(&FileAction::CreateFile, sln.name);
-                    }
                     self.create_solution_file(sln.name)?;
                 }
+            }
+        }
+
+        if self.solutions.is_empty() && create_mod {
+            let sln_name = "naive";
+            let sln_filename = self.solution_filename(sln_name);
+            count += 1;
+            if let Some(cb) = callback {
+                cb(&FileAction::CreateFile, &sln_filename);
+            }
+            if !dry_run {
+                self.create_solution_file(sln_name)?;
             }
         }
 
         let index_filename = self.index_filename();
         let mut index = ProblemIndex::load(&index_filename)?;
         if !index.contain(self.id) {
-            result.push((FileAction::UpdateIndex, index_filename.clone()));
+            count += 1;
+            if let Some(cb) = callback {
+                cb(&FileAction::UpdateIndex, &index_filename);
+            }
             if !dry_run {
-                if let Some(cb) = callback {
-                    cb(&FileAction::UpdateIndex, &index_filename);
-                }
                 index.add(self.id);
                 index.write(&index_filename)?;
             }
         }
 
-        Ok(result)
+        Ok(count)
     }
 
     fn do_remove_actions(
         &self,
         callback: Option<FileActionCallback>,
         dry_run: bool,
-    ) -> Result<Vec<(FileAction, String)>, io::Error> {
-        let mut result = Vec::new();
+    ) -> Result<i32, io::Error> {
+        let mut count = 0;
         let problem_dir = self.dir_name();
 
         // check index file
         let index_filename = self.index_filename();
         let mut index = ProblemIndex::load(&index_filename)?;
         if index.contain(self.id) {
-            result.push((FileAction::UpdateIndex, index_filename.clone()));
+            count += 1;
+            if let Some(cb) = callback {
+                cb(&FileAction::UpdateIndex, &index_filename);
+            }
             if !dry_run {
-                if let Some(cb) = callback {
-                    cb(&FileAction::UpdateIndex, &index_filename);
-                }
                 index.remove(self.id);
                 index.write(&index_filename)?;
             }
@@ -327,39 +340,39 @@ impl ProblemManagement for Problem {
         // check problem directory
         let problem_dir_path = Path::new(&problem_dir);
         if !problem_dir_path.exists() {
-            return Ok(result);
+            return Ok(count);
         }
 
         for entry in fs::read_dir(&problem_dir)?.flatten() {
             let path = entry.path();
             if path.is_file() {
-                result.push((FileAction::Remove, path.to_str().unwrap().to_string()));
+                count += 1;
+                if let Some(cb) = callback {
+                    cb(&FileAction::Remove, path.to_str().unwrap());
+                }
                 if !dry_run {
-                    if let Some(cb) = callback {
-                        cb(&FileAction::Remove, path.to_str().unwrap());
-                    }
                     fs::remove_file(path)?;
                 }
             } else if path.is_dir() {
-                result.push((FileAction::RemoveDir, path.to_str().unwrap().to_string()));
+                count += 1;
+                if let Some(cb) = callback {
+                    cb(&FileAction::RemoveDir, path.to_str().unwrap());
+                }
                 if !dry_run {
-                    if let Some(cb) = callback {
-                        cb(&FileAction::RemoveDir, path.to_str().unwrap());
-                    }
                     fs::remove_dir_all(path)?;
                 }
             }
         }
 
-        result.push((FileAction::RemoveDir, problem_dir.clone()));
+        count += 1;
+        if let Some(cb) = callback {
+            cb(&FileAction::RemoveDir, &problem_dir);
+        }
         if !dry_run {
-            if let Some(cb) = callback {
-                cb(&FileAction::RemoveDir, &problem_dir);
-            }
             fs::remove_dir_all(&problem_dir)?;
         }
 
-        Ok(result)
+        Ok(count)
     }
 }
 
