@@ -576,7 +576,7 @@ fn do_add(pid: i64, title: &str, answer: i64, sln_names: &[String], dry_run: boo
         return;
     }
 
-    if !action_confirm("create template files showed above", "yes") {
+    if action_count > 1 && !action_confirm("create template files showed above", "yes") {
         return;
     }
 
@@ -592,17 +592,27 @@ fn do_add(pid: i64, title: &str, answer: i64, sln_names: &[String], dry_run: boo
 }
 
 fn do_delete(pids: Vec<i64>, full_delete: bool) {
+    let mut total_actions = 0;
+    let mut update_index_only = true;
     for pid in &pids {
         let problem = Problem::from_id(*pid);
-        let action_list = problem.do_remove_actions(Some(print_action), full_delete, true).unwrap();
-        if action_list <= 0 {
+        let action_count = problem.do_remove_actions(Some(print_action), full_delete, true).unwrap();
+        total_actions += action_count;
+        if action_count > 1 {
+            update_index_only = false;
+        }
+        if action_count <= 0 {
             let target = format!("problem {}", pid.to_string().green().bold());
             println!("{:>8} {}", "SKIP".yellow().bold(), target);
             continue;
         }
     }
 
-    if !action_confirm("delete files showed above", "yes") {
+    if total_actions <= 0 {
+        return;
+    }
+
+    if !update_index_only && !action_confirm("delete files showed above", "yes") {
         return;
     }
 
