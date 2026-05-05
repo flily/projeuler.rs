@@ -362,7 +362,7 @@ fn print_result(
 }
 
 fn do_run(pids: Vec<i64>, timeout_ms: u64, check_answers: bool) {
-    let rt = runtime::Builder::new_multi_thread()
+    let rt = runtime::Builder::new_current_thread()
         .enable_time()
         .build()
         .expect("failed to create tokio runtime");
