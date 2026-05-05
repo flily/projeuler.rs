@@ -1,10 +1,9 @@
 use std::io::{self, BufRead, Write};
-use std::sync::mpsc;
-use std::thread;
 use std::time;
 
 use clap::{Parser, Subcommand};
 use colored::{Color, Colorize};
+use tokio::{time::timeout, runtime};
 
 use crate::common::{Checkable, Problem, SolutionInfo};
 use management::ProblemManagement;
@@ -89,6 +88,7 @@ fn parse_duration(s: &str) -> Result<u64, String> {
 }
 
 #[derive(Clone)]
+#[allow(dead_code)]
 enum FinalResult {
     None,
     Correct,
@@ -156,25 +156,36 @@ fn make_run_results(info: &common::Problem) -> Vec<RunResult> {
         .collect()
 }
 
-fn run_solution(run_result: &mut RunResult, timeout_ms: u64, check_answer: bool) {
+async fn run_solution(run_result: &mut RunResult, timeout_ms: u64, check_answer: bool) {
     let entry = run_result.entry;
-    let (tx, rx) = mpsc::sync_channel(1);
 
     let t1 = time::Instant::now();
-    thread::spawn(move || {
-        let result = std::panic::catch_unwind(entry);
-        let _ = tx.send(result);
-    });
-    let timeout = time::Duration::from_millis(timeout_ms);
 
-    let response = if timeout_ms == 0 {
-        rx.recv().map_err(|e| e.into())
+    let task = tokio::task::spawn_blocking(move || {
+        std::panic::catch_unwind(entry)
+    });
+
+    // Ok(val)    => completed successfully
+    // Err(false) => crashed (panic)
+    // Err(true)  => timed out
+    let response: Result<i64, bool> = if timeout_ms == 0 {
+        match task.await {
+            Ok(Ok(val)) => Ok(val),
+            _ => Err(false),
+        }
     } else {
-        rx.recv_timeout(timeout)
+        let run_timeout = time::Duration::from_millis(timeout_ms);
+        match timeout(run_timeout, task).await {
+            Ok(Ok(Ok(val))) => Ok(val),
+            Ok(_) => Err(false),
+            Err(_) => Err(true),
+        }
     };
 
+    run_result.cost_ms = t1.elapsed().as_nanos() as f64 / 1_000_000.0;
+
     match response {
-        Ok(Ok(got)) => {
+        Ok(got) => {
             run_result.got = Some(got);
             if check_answer {
                 run_result.result = if run_result.check(got) {
@@ -184,16 +195,19 @@ fn run_solution(run_result: &mut RunResult, timeout_ms: u64, check_answer: bool)
                 };
             }
         }
-        Ok(Err(_)) => run_result.result = FinalResult::Crash,
-        Err(mpsc::RecvTimeoutError::Timeout) => run_result.result = FinalResult::Timeout,
-        Err(mpsc::RecvTimeoutError::Disconnected) => run_result.result = FinalResult::Crash,
+        Err(true) => {
+            run_result.result = FinalResult::Timeout;
+        }
+        Err(false) => {
+            run_result.result = FinalResult::Crash;
+        }
     }
-    run_result.cost_ms = t1.elapsed().as_nanos() as f64 / 1_000_000.0;
 }
 
 fn color_cost_time(cost_ms: f64, timeout: f64) -> colored::ColoredString {
+    let total_timeout = if timeout > 0.0 { timeout } else { 500.0 };
     let s = format!("{:.3} ms", cost_ms);
-    let prop = cost_ms / timeout;
+    let prop = cost_ms / total_timeout;
 
     if prop < 0.1 {
         s.green()
@@ -278,24 +292,26 @@ fn print_one_solution_problem(problem: &common::Problem, run_result: &RunResult,
     let pid = run_result.result.color_on(&problem.id.to_string());
     let title = run_result.result.color_on(problem.title);
     let result = run_result.result.color_string();
-    let cost = color_cost_time(run_result.cost_ms, timeout_ms)
-        .bold()
-        .underline();
+    let cost = color_cost_time(run_result.cost_ms, timeout_ms);
     let solution = run_result
         .result
-        .color_on(&format!("- {}", run_result.solution))
-        .bold()
-        .underline();
+        .color_on(&format!("- {}", run_result.solution));
     let answer = if let Some(got) = run_result.got {
         got.to_string().color(run_result.result.color())
     } else {
         "NO RESULT".red()
     };
 
-    println!(
-        "| {:>4} | {:<40} | {:<40} | {:^14} | {:^9} | {:>12} |",
-        pid, title, solution, answer, result, cost,
-    );
+    match run_result.result {
+         FinalResult::Correct => println!(
+            "| {:>4} | {:<40} | {:<40} | {:^14} | {:^9} | {:>12} |",
+            pid, title, solution.bold().underline(), answer, result, cost.bold().underline(),
+        ),
+        _ => println!(
+            "| {:>4} | {:<40} | {:<40} | {:^14} | {:^9} | {:>12} |",
+            pid, title, solution, answer, result, cost,
+        ),
+    }
 }
 
 fn print_result(
@@ -332,6 +348,10 @@ fn print_result(
 }
 
 fn do_run(pids: Vec<i64>, timeout_ms: u64, check_answers: bool) {
+    let rt = runtime::Builder::new_current_thread()
+        .enable_time()
+        .build()
+        .expect("failed to create tokio runtime");
     let sepline = "+".to_string()
         + &"-".repeat(4 + 2) + "+"      // PID
         + &"-".repeat(40 + 2) + "+"     // Title
@@ -363,7 +383,7 @@ fn do_run(pids: Vec<i64>, timeout_ms: u64, check_answers: bool) {
         let problem_time_start = time::Instant::now();
         for sln in solutions.iter_mut() {
             let sln_timeout_ms = timeout_ms + problem.extra_time_ms.as_millis() as u64;
-            run_solution(sln, sln_timeout_ms, check_answers);
+            rt.block_on(run_solution(sln, sln_timeout_ms, check_answers));
         }
         let problem_time = problem_time_start.elapsed();
 
@@ -405,6 +425,8 @@ fn do_run(pids: Vec<i64>, timeout_ms: u64, check_answers: bool) {
     );
     let time_cost = format!("{:.3} ms", elapsed_time).yellow();
     println!("Total time: {}", time_cost);
+
+    rt.shutdown_background();
 }
 
 fn do_list(pids: Vec<i64>) {
