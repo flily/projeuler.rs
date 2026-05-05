@@ -400,11 +400,9 @@ fn do_run(pids: Vec<i64>, timeout_ms: u64, check_answers: bool) {
             rt.block_on(run_solution(sln, sln_timeout_ms, check_answers));
             // run correct solutions again to get more accurate time cost.
             match sln.result {
-                FinalResult::Correct => {
+                FinalResult::Correct if sln.cost_ms < 5.0 => {
                     // only solutions use very short time can make big difference.
-                    if sln.cost_ms < 5.0 {
-                        simple_run_solution(sln);
-                    }
+                    simple_run_solution(sln);
                 }
                 _ => {}
             }
