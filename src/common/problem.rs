@@ -16,7 +16,7 @@ pub struct Problem {
     pub id: i64,
     pub title: &'static str,
     pub answer: i64,
-    pub extra_time_ms: std::time::Duration,
+    pub extra_time_ms: u64,
     pub solutions: Vec<SolutionInfo>,
 }
 

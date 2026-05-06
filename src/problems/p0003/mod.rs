@@ -8,7 +8,7 @@ pub static INFO: std::sync::LazyLock<Problem> = std::sync::LazyLock::new(|| Prob
     id: 3,
     title: "Largest Prime Factor",
     answer: 6857,
-    extra_time_ms: std::time::Duration::from_millis(0),
+    extra_time_ms: 0,
     solutions: vec![
         SolutionInfo {
             name: "naive",

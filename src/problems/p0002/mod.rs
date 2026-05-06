@@ -6,7 +6,7 @@ pub static INFO: std::sync::LazyLock<Problem> = std::sync::LazyLock::new(|| Prob
     id: 2,
     title: "Even Fibonacci Numbers",
     answer: 4613732,
-    extra_time_ms: std::time::Duration::from_millis(0),
+    extra_time_ms: 0,
     solutions: vec![
         SolutionInfo {
             name: "naive",

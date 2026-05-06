@@ -198,7 +198,7 @@ impl ProblemManagement for Problem {
             format!("    id: {},", self.id),
             format!("    title: \"{}\",", self.title),
             format!("    answer: {},", self.answer),
-            "    extra_time_ms: std::time::Duration::from_millis(0),".to_string(),
+            "    extra_time_ms: 0,".to_string(),
             "    solutions: vec![".to_string(),
         ];
 

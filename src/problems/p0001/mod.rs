@@ -6,7 +6,7 @@ pub static INFO: std::sync::LazyLock<Problem> = std::sync::LazyLock::new(|| Prob
     id: 1,
     title: "Multiples of 3 and 5",
     answer: 233168,
-    extra_time_ms: std::time::Duration::from_millis(0),
+    extra_time_ms: 0,
     solutions: vec![
         SolutionInfo {
             name: "naive",

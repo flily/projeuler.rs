@@ -6,7 +6,7 @@ pub static INFO: std::sync::LazyLock<Problem> = std::sync::LazyLock::new(|| Prob
     id: 22,
     title: "Names scores",
     answer: 871198282,
-    extra_time_ms: std::time::Duration::from_millis(0),
+    extra_time_ms: 0,
     solutions: vec![
         SolutionInfo {
             name: "naive",

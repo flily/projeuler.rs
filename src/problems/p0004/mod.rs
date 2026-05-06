@@ -10,7 +10,7 @@ pub static INFO: std::sync::LazyLock<Problem> = std::sync::LazyLock::new(|| Prob
     id: 4,
     title: "Largest Palindrome Product",
     answer: 906609,
-    extra_time_ms: std::time::Duration::from_millis(0),
+    extra_time_ms: 0,
     solutions: vec![
         SolutionInfo {
             name: "by string (forward search)",

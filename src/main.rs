@@ -87,7 +87,6 @@ fn parse_duration(s: &str) -> Result<u64, String> {
     }
 
     let value = value_str.parse::<u64>().map_err(|e| e.to_string())?;
-
     Ok(value * base)
 }
 
@@ -396,7 +395,7 @@ fn do_run(pids: Vec<i64>, timeout_ms: u64, check_answers: bool) {
         let mut solutions = make_run_results(problem);
         let problem_time_start = time::Instant::now();
         for sln in solutions.iter_mut() {
-            let sln_timeout_ms = timeout_ms + problem.extra_time_ms.as_millis() as u64;
+            let sln_timeout_ms = timeout_ms + problem.extra_time_ms;
             rt.block_on(run_solution(sln, sln_timeout_ms, check_answers));
             // run correct solutions again to get more accurate time cost.
             match sln.result {
@@ -532,7 +531,7 @@ impl Problem {
             id: pid,
             title: "",
             answer: 0,
-            extra_time_ms: std::time::Duration::from_millis(0),
+            extra_time_ms: 0,
             solutions: vec![],
         }
     }
@@ -559,7 +558,7 @@ fn do_add(pid: i64, title: &str, answer: i64, sln_names: &[String], dry_run: boo
         id: pid,
         title: title_static,
         answer,
-        extra_time_ms: std::time::Duration::from_millis(0),
+        extra_time_ms: 0,
         solutions,
     };
 
