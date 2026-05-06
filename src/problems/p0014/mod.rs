@@ -2,6 +2,7 @@ use crate::common::{Problem, SolutionInfo};
 
 mod naive;
 mod cache_hashmap;
+mod cache_fxhashmap;
 mod cache_vector;
 
 pub static INFO: std::sync::LazyLock<Problem> = std::sync::LazyLock::new(|| Problem {
@@ -17,6 +18,10 @@ pub static INFO: std::sync::LazyLock<Problem> = std::sync::LazyLock::new(|| Prob
         SolutionInfo {
             name: "with cache (HashMap)",
             entry: cache_hashmap::solve,
+        },
+        SolutionInfo {
+            name: "with cache (FxHashMap)",
+            entry: cache_fxhashmap::solve,
         },
         SolutionInfo {
             name: "with cache (Vector)",

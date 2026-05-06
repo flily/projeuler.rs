@@ -4,6 +4,7 @@ mod common;
 
 mod naive;
 mod cache_hashset;
+mod cache_fxhashset;
 mod cache_vector;
 mod cache_vectorlet;
 
@@ -20,6 +21,10 @@ pub static INFO: std::sync::LazyLock<Problem> = std::sync::LazyLock::new(|| Prob
         SolutionInfo {
             name: "with cache (HashSet)",
             entry: cache_hashset::solve,
+        },
+        SolutionInfo {
+            name: "with cache (FxHashSet)",
+            entry: cache_fxhashset::solve,
         },
         SolutionInfo {
             name: "with cache (Vector)",
