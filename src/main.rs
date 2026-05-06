@@ -136,7 +136,8 @@ struct RunResult {
     answer: Option<i64>,
     got: Option<i64>,
     result: FinalResult,
-    cost_ms: f64,
+    cost: time::Duration,
+    extra_timeout_ms: u64,
 }
 
 impl Checkable for RunResult {
@@ -154,7 +155,8 @@ fn make_run_results(info: &common::Problem) -> Vec<RunResult> {
             answer: Some(info.answer),
             got: None,
             result: FinalResult::None, // default to None, will be updated after running
-            cost_ms: 0.0,
+            cost: time::Duration::from_millis(0),
+            extra_timeout_ms: info.extra_time_ms,
         })
         .collect()
 }
@@ -164,7 +166,7 @@ fn simple_run_solution(run_result: &mut RunResult) {
 
     let t1 = time::Instant::now();
     entry();
-    run_result.cost_ms = t1.elapsed().as_nanos() as f64 / 1_000_000.0;
+    run_result.cost = t1.elapsed();
 }
 
 async fn run_solution(run_result: &mut RunResult, timeout_ms: u64, check_answer: bool) {
@@ -191,7 +193,7 @@ async fn run_solution(run_result: &mut RunResult, timeout_ms: u64, check_answer:
             Err(_) => Err(true),
         }
     };
-    run_result.cost_ms = t1.elapsed().as_nanos() as f64 / 1_000_000.0;
+    run_result.cost = t1.elapsed();
 
     match response {
         Ok(got) => {
@@ -213,12 +215,13 @@ async fn run_solution(run_result: &mut RunResult, timeout_ms: u64, check_answer:
     }
 }
 
-fn color_cost_time(cost_ms: f64, timeout: f64) -> colored::ColoredString {
+fn color_cost_time(cost: time::Duration, timeout_ms: u64) -> colored::ColoredString {
+    let cost_ms = cost.as_nanos() as f64 / 1_000_000.0;
     if cost_ms < 0.001 {
         return format!(">>  {:4.3} us", cost_ms * 1000.0).green();
     }
 
-    let total_timeout = if timeout > 0.0 { timeout } else { 500.0 };
+    let total_timeout = if timeout_ms > 0 { timeout_ms as f64 } else { 500.0 };
     let s = format!("{:8.3} ms", cost_ms);
     let prop = cost_ms / total_timeout;
 
@@ -237,21 +240,21 @@ fn color_cost_time(cost_ms: f64, timeout: f64) -> colored::ColoredString {
     }
 }
 
-fn print_problem_result(problem: &common::Problem, problem_result: FinalResult, timeout_ms: f64, cost_ms: f64) {
-    let total_timeout = (problem.solutions.len() as f64) * timeout_ms;
+fn print_problem_result(problem: &common::Problem, problem_result: FinalResult, timeout_ms: u64, cost: time::Duration) {
+    let total_timeout = (problem.solutions.len() as u64) * (timeout_ms + problem.extra_time_ms);
 
     let pid = problem_result.color_on(&problem.id.to_string());
     let title = problem_result.color_on(problem.title);
-    let cost = color_cost_time(cost_ms, total_timeout);
+    let cost = color_cost_time(cost, total_timeout);
     let result = problem_result.color_string();
-    let solutions = format!("+-- {} solutions", problem.solutions.len());
+
     println!(
-        "| {:>4} | {:<40} | {:<40} | {:^14} | {:^9} | {:>12} |",
-        pid, title, solutions, "", result, cost,
+        "| {:>4} | {:<40} | {:^14} | {:^9} | {:>12} |",
+        pid, title, "", result, cost,
     );
 }
 
-fn print_solution_result(run_result: &RunResult, timeout_ms: f64, is_best: bool) {
+fn print_solution_result(run_result: &RunResult, timeout_ms: u64, is_best: bool) {
     let result = run_result.result.color_string();
     let solution = if is_best {
         format!("* {}", run_result.solution).color(run_result.result.color()).bold().underline()
@@ -259,34 +262,39 @@ fn print_solution_result(run_result: &RunResult, timeout_ms: f64, is_best: bool)
         format!("+ {}", run_result.solution).color(run_result.result.color())
     };
     let cost: colored::ColoredString = if is_best {
-        color_cost_time(run_result.cost_ms, timeout_ms).bold().underline()
+        color_cost_time(run_result.cost, timeout_ms).bold().underline()
     } else {
-        color_cost_time(run_result.cost_ms, timeout_ms)
+        color_cost_time(run_result.cost, timeout_ms)
     };
     let answer = if let Some(got) = run_result.got {
         got.to_string().color(run_result.result.color())
     } else {
         "NO RESULT".red()
     };
+    let extra_timeout = if run_result.extra_timeout_ms > 0 {
+        format!(" [+ {} ms]", run_result.extra_timeout_ms).yellow()
+    } else {
+        "".into()
+    };
 
     println!(
-        "| {:>4} | {:<40} | {:<40} | {:^14} | {:^9} | {:>12} |",
-        "", "", solution, answer, result, cost,
+        "| {:>4} | {:<40} | {:^14} | {:^9} | {:>12} |{}",
+        "", solution, answer, result, cost, extra_timeout,
     );
 }
 
 fn make_problem_result(solutions: &[RunResult]) -> (FinalResult, i32) {
     let mut result = FinalResult::Timeout;
     let mut best_index = -1;
-    let mut best_time = f64::MAX;
+    let mut best_time = time::Duration::from_secs(0);
 
     for (i, sln) in solutions.iter().enumerate() {
         match sln.result {
             FinalResult::Timeout => {}
             FinalResult::Correct => {
                 result = FinalResult::Correct;
-                if sln.cost_ms < best_time {
-                    best_time = sln.cost_ms;
+                if sln.cost < best_time || best_index < 0 {
+                    best_time = sln.cost;
                     best_index = i as i32;
                 }
 
@@ -301,28 +309,31 @@ fn make_problem_result(solutions: &[RunResult]) -> (FinalResult, i32) {
     (result, best_index)
 }
 
-fn print_one_solution_problem(problem: &common::Problem, run_result: &RunResult, timeout_ms: f64) {
+fn print_one_solution_problem(problem: &common::Problem, run_result: &RunResult, timeout_ms: u64) {
+    let total_timeout = timeout_ms + problem.extra_time_ms;
     let pid = run_result.result.color_on(&problem.id.to_string());
     let title = run_result.result.color_on(problem.title);
     let result = run_result.result.color_string();
-    let cost = color_cost_time(run_result.cost_ms, timeout_ms);
-    let solution = run_result
-        .result
-        .color_on(&format!("- {}", run_result.solution));
+    let cost = color_cost_time(run_result.cost, total_timeout);
     let answer = if let Some(got) = run_result.got {
         got.to_string().color(run_result.result.color())
     } else {
         "NO RESULT".red()
     };
+    let extra_timeout = if run_result.extra_timeout_ms > 0 {
+        format!(" [+ {} ms]", run_result.extra_timeout_ms).yellow()
+    } else {
+        "".into()
+    };
 
     match run_result.result {
          FinalResult::Correct => println!(
-            "| {:>4} | {:<40} | {:<40} | {:^14} | {:^9} | {:>12} |",
-            pid, title, solution.bold().underline(), answer, result, cost.bold().underline(),
+            "| {:>4} | {:<40} | {:^14} | {:^9} | {:>12} |{}",
+            pid, title.bold().underline(), answer, result, cost.bold().underline(), extra_timeout,
         ),
         _ => println!(
-            "| {:>4} | {:<40} | {:<40} | {:^14} | {:^9} | {:>12} |",
-            pid, title, solution, answer, result, cost,
+            "| {:>4} | {:<40} | {:^14} | {:^9} | {:>12} |{}",
+            pid, title, answer, result, cost, extra_timeout,
         ),
     }
 }
@@ -330,7 +341,7 @@ fn print_one_solution_problem(problem: &common::Problem, run_result: &RunResult,
 fn print_result(
     problem: &common::Problem,
     solutions: &[RunResult],
-    timeout_ms: f64,
+    timeout_ms: u64,
     cost: time::Duration,
 ) -> (i32, i32) {
     if solutions.len() == 1 {
@@ -346,8 +357,7 @@ fn print_result(
     }
 
     let (problem_result, best_index) = make_problem_result(solutions);
-    let cost_ms = cost.as_nanos() as f64 / 1_000_000.0;
-    print_problem_result(problem, problem_result, timeout_ms, cost_ms);
+    print_problem_result(problem, problem_result, timeout_ms, cost);
 
     let mut correct_count = 0;
     for (i, sln) in solutions.iter().enumerate() {
@@ -368,7 +378,7 @@ fn do_run(pids: Vec<i64>, timeout_ms: u64, check_answers: bool) {
     let sepline = "+".to_string()
         + &"-".repeat(4 + 2) + "+"      // PID
         + &"-".repeat(40 + 2) + "+"     // Title
-        + &"-".repeat(40 + 2) + "+"     // Solution
+        // + &"-".repeat(40 + 2) + "+"     // Solution
         + &"-".repeat(14 + 2) + "+"     // Answer
         + &"-".repeat(9 + 2) + "+"      // Result
         + &"-".repeat(12 + 2) + "+"     // Time 12345.678 ms
@@ -376,8 +386,8 @@ fn do_run(pids: Vec<i64>, timeout_ms: u64, check_answers: bool) {
 
     println!("{}", sepline);
     println!(
-        "| {:>4} | {:<40} | {:<40} | {:^14} | {:^9} | {:>12} |",
-        "PID", "Title", "Solution", "Answer", "Result", "Time",
+        "| {:>4} | {:<40} | {:^14} | {:^9} | {:>12} |",
+        "PID", "Title / Solution", "Answer", "Result", "Time",
     );
     println!("{}", sepline);
 
@@ -399,7 +409,7 @@ fn do_run(pids: Vec<i64>, timeout_ms: u64, check_answers: bool) {
             rt.block_on(run_solution(sln, sln_timeout_ms, check_answers));
             // run correct solutions again to get more accurate time cost.
             match sln.result {
-                FinalResult::Correct if sln.cost_ms < 5.0 => {
+                FinalResult::Correct if sln.cost < time::Duration::from_micros(5) => {
                     // only solutions use very short time can make big difference.
                     simple_run_solution(sln);
                 }
@@ -408,7 +418,7 @@ fn do_run(pids: Vec<i64>, timeout_ms: u64, check_answers: bool) {
         }
         let problem_time = problem_time_start.elapsed();
 
-        let (correct_count, total_count) = print_result(problem, &solutions, timeout_ms as f64, problem_time);
+        let (correct_count, total_count) = print_result(problem, &solutions, timeout_ms, problem_time);
 
         count_solutions_succ += correct_count;
         count_solutions += total_count;
@@ -441,8 +451,8 @@ fn do_run(pids: Vec<i64>, timeout_ms: u64, check_answers: bool) {
     let problem_total = count_problems.to_string().blue();
 
     println!(
-        "Problems: {}/{} ({}%) , Solutions: {}/{}",
-        problem_succ, problem_total, succ_rate, count_solutions_succ, count_solutions,
+        "Problems: {}/{} ({}%) , Solutions: {}/{}, Solution timeout: {} ms",
+        problem_succ, problem_total, succ_rate, count_solutions_succ, count_solutions, timeout_ms,
     );
     let time_cost = format!("{:.3} ms", elapsed_time).yellow();
     println!("Total time: {}", time_cost);
