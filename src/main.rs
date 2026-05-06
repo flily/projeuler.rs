@@ -215,28 +215,37 @@ async fn run_solution(run_result: &mut RunResult, timeout_ms: u64, check_answer:
     }
 }
 
-fn color_cost_time(cost: time::Duration, timeout_ms: u64) -> colored::ColoredString {
+fn cost_time_color(cost: time::Duration, timeout_ms: u64) -> colored::Color {
     let cost_ms = cost.as_nanos() as f64 / 1_000_000.0;
-    if cost_ms < 0.001 {
-        return format!(">>  {:4.3} us", cost_ms * 1000.0).green();
-    }
-
     let total_timeout = if timeout_ms > 0 { timeout_ms as f64 } else { 500.0 };
-    let s = format!("{:8.3} ms", cost_ms);
     let prop = cost_ms / total_timeout;
 
     if prop < 0.1 {
-        s.green()
+        Color::Green
     } else if prop < 0.2 {
-        s.blue()
+        Color::Blue
     } else if prop < 0.3 {
-        s.cyan()
+        Color::Cyan
     } else if prop < 0.5 {
-        s.yellow()
+        Color::Yellow
     } else if prop < 0.8 {
-        s.magenta()
+        Color::Magenta
     } else {
-        s.red()
+        Color::Red
+    }
+}
+
+fn color_cost_time(cost: time::Duration, color: colored::Color, is_best: bool) -> colored::ColoredString {
+    let s = if cost < time::Duration::from_micros(1) {
+        format!(">>  {:4.3} μs", cost.as_nanos() / 1_000)
+    } else {
+        format!("{:8.3} ms", cost.as_nanos() as f64 / 1_000_000.0)
+    };
+
+    if is_best {
+        s.on_color(color).bold()
+    } else {
+        s.color(color)
     }
 }
 
@@ -245,7 +254,8 @@ fn print_problem_result(problem: &common::Problem, problem_result: FinalResult, 
 
     let pid = problem_result.color_on(&problem.id.to_string());
     let title = problem_result.color_on(problem.title);
-    let cost = color_cost_time(cost, total_timeout);
+    let cost_color = cost_time_color(cost, total_timeout);
+    let cost = color_cost_time(cost, cost_color, false);
     let result = problem_result.color_string();
 
     println!(
@@ -257,15 +267,12 @@ fn print_problem_result(problem: &common::Problem, problem_result: FinalResult, 
 fn print_solution_result(run_result: &RunResult, timeout_ms: u64, is_best: bool) {
     let result = run_result.result.color_string();
     let solution = if is_best {
-        format!("* {}", run_result.solution).color(run_result.result.color()).bold().underline()
+        format!("* {}", run_result.solution).on_color(run_result.result.color()).bold()
     } else {
         format!("+ {}", run_result.solution).color(run_result.result.color())
     };
-    let cost: colored::ColoredString = if is_best {
-        color_cost_time(run_result.cost, timeout_ms).bold().underline()
-    } else {
-        color_cost_time(run_result.cost, timeout_ms)
-    };
+    let cost_color = cost_time_color(run_result.cost, timeout_ms);
+    let cost = color_cost_time(run_result.cost, cost_color, is_best);
     let answer = if let Some(got) = run_result.got {
         got.to_string().color(run_result.result.color())
     } else {
@@ -312,9 +319,10 @@ fn make_problem_result(solutions: &[RunResult]) -> (FinalResult, i32) {
 fn print_one_solution_problem(problem: &common::Problem, run_result: &RunResult, timeout_ms: u64) {
     let total_timeout = timeout_ms + problem.extra_time_ms;
     let pid = run_result.result.color_on(&problem.id.to_string());
-    let title = run_result.result.color_on(problem.title);
+    let title = problem.title;
     let result = run_result.result.color_string();
-    let cost = color_cost_time(run_result.cost, total_timeout);
+    let cost_color = cost_time_color(run_result.cost, total_timeout);
+    let cost = color_cost_time(run_result.cost, cost_color, true);
     let answer = if let Some(got) = run_result.got {
         got.to_string().color(run_result.result.color())
     } else {
@@ -329,7 +337,7 @@ fn print_one_solution_problem(problem: &common::Problem, run_result: &RunResult,
     match run_result.result {
          FinalResult::Correct => println!(
             "| {:>4} | {:<40} | {:^14} | {:^9} | {:>12} |{}",
-            pid, title.bold().underline(), answer, result, cost.bold().underline(), extra_timeout,
+            pid, title.on_color(run_result.result.color()).bold(), answer, result, cost, extra_timeout,
         ),
         _ => println!(
             "| {:>4} | {:<40} | {:^14} | {:^9} | {:>12} |{}",
