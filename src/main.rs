@@ -12,6 +12,8 @@ mod common;
 mod problems;
 mod management;
 
+const DEFAULT_TIMEOUT_MS: u64 = 500;
+
 #[derive(Subcommand)]
 enum Command {
     /// run solutions of problems
@@ -217,7 +219,7 @@ async fn run_solution(run_result: &mut RunResult, timeout_ms: u64, check_answer:
 
 fn cost_time_color(cost: time::Duration, timeout_ms: u64) -> colored::Color {
     let cost_ms = cost.as_nanos() as f64 / 1_000_000.0;
-    let total_timeout = if timeout_ms > 0 { timeout_ms as f64 } else { 500.0 };
+    let total_timeout = if timeout_ms > 0 { timeout_ms as f64 } else { DEFAULT_TIMEOUT_MS as f64 };
     let prop = cost_ms / total_timeout;
 
     if prop < 0.1 {
@@ -322,7 +324,7 @@ fn print_one_solution_problem(problem: &common::Problem, run_result: &RunResult,
     let title = problem.title;
     let result = run_result.result.color_string();
     let cost_color = cost_time_color(run_result.cost, total_timeout);
-    let cost = color_cost_time(run_result.cost, cost_color, true);
+    let cost = color_cost_time(run_result.cost, cost_color, matches!(run_result.result, FinalResult::Correct));
     let answer = if let Some(got) = run_result.got {
         got.to_string().color(run_result.result.color())
     } else {
