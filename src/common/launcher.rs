@@ -340,7 +340,7 @@ mod tests {
         assert!(info.contains_str("1234"));
         assert!(!info.contains_str("23"));
         assert!(!info.contains_str("45"));
-        assert!(info.contains_str(&String::from("1234")));
+        assert!(info.contains_str(String::from("1234")));
     }
 
     fn make_problem_info(id: i64, title: &str, solutions: &[&str]) -> Problem {
