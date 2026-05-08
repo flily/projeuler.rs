@@ -7,11 +7,13 @@ pub type Solution = fn() -> i64;
 
 static DATA_PATH_BASE: &str = "data";
 
+#[derive(Debug)]
 pub struct SolutionInfo {
     pub name: &'static str,
     pub entry: Solution,
 }
 
+#[derive(Debug)]
 pub struct Problem {
     pub id: i64,
     pub title: &'static str,
@@ -20,13 +22,15 @@ pub struct Problem {
     pub solutions: Vec<SolutionInfo>,
 }
 
-pub trait Checkable {
-    fn check(&self, solution: i64) -> bool;
-}
-
-impl Checkable for Problem {
-    fn check(&self, solution: i64) -> bool {
-        solution == self.answer
+impl Problem {
+    pub fn from_id(id: i64) -> Self {
+        Problem {
+            id,
+            title: "",
+            answer: 0,
+            extra_time_ms: 0,
+            solutions: vec![],
+        }
     }
 }
 

@@ -5,7 +5,9 @@ use clap::{Parser, Subcommand};
 use colored::{Color, Colorize};
 use tokio::{time::timeout, runtime};
 
-use crate::common::{Checkable, Problem, SolutionInfo};
+use crate::common::{Problem, SolutionInfo};
+use crate::common::launcher;
+use crate::common::launcher::{RunResult, FinalResult, ProblemSelection};
 use management::ProblemManagement;
 
 mod common;
@@ -31,7 +33,7 @@ enum Command {
         /// always color the output, even when not running in a terminal
         #[arg(long = "color", default_value_t = false)]
         always_color: bool,
-        pids: Vec<i64>,
+        pids: Vec<String>,
     },
     /// list problems
     #[command(visible_aliases = ["l", "ls"])]
@@ -72,81 +74,6 @@ struct Args {
     command: Command,
 }
 
-fn parse_duration(s: &str) -> Result<u64, String> {
-    let s = s.trim();
-    let value_str: &str;
-    let base: u64;
-
-    if let Some(stripped) = s.strip_suffix("ms") {
-        value_str = stripped;
-        base = 1;
-    } else if let Some(stripped) = s.strip_suffix("s") {
-        value_str = stripped;
-        base = 1000;
-    } else {
-        value_str = s;
-        base = 1000; // default to seconds if no unit is provided
-    }
-
-    let value = value_str.parse::<u64>().map_err(|e| e.to_string())?;
-    Ok(value * base)
-}
-
-#[derive(Clone)]
-#[allow(dead_code)]
-enum FinalResult {
-    None,
-    Correct,
-    Wrong,
-    Timeout,
-    Crash,
-}
-
-impl FinalResult {
-    fn to_string(&self) -> &str {
-        match self {
-            FinalResult::None => "-",
-            FinalResult::Correct => "correct",
-            FinalResult::Wrong => "wrong",
-            FinalResult::Timeout => "timeout",
-            FinalResult::Crash => "crash",
-        }
-    }
-
-    fn color(&self) -> colored::Color {
-        match self {
-            FinalResult::Correct => Color::Green,
-            FinalResult::Wrong => Color::Red,
-            FinalResult::Timeout => Color::Yellow,
-            FinalResult::Crash => Color::Red,
-            _ => Color::White,
-        }
-    }
-
-    fn color_string(&self) -> colored::ColoredString {
-        self.to_string().color(self.color())
-    }
-
-    fn color_on(&self, s: &str) -> colored::ColoredString {
-        s.color(self.color())
-    }
-}
-
-struct RunResult {
-    solution: &'static str,
-    entry: common::Solution,
-    answer: Option<i64>,
-    got: Option<i64>,
-    result: FinalResult,
-    cost: time::Duration,
-    extra_timeout_ms: u64,
-}
-
-impl Checkable for RunResult {
-    fn check(&self, result: i64) -> bool {
-        result == self.answer.unwrap()
-    }
-}
 
 fn make_run_results(info: &common::Problem) -> Vec<RunResult> {
     info.solutions
@@ -274,7 +201,10 @@ fn print_solution_result(run_result: &RunResult, timeout_ms: u64, is_best: bool)
         format!("+ {}", run_result.solution).color(run_result.result.color())
     };
     let cost_color = cost_time_color(run_result.cost, timeout_ms);
-    let cost = color_cost_time(run_result.cost, cost_color, is_best);
+    let cost = match run_result.result {
+        FinalResult::None => "-   ".yellow(),
+        _ => color_cost_time(run_result.cost, cost_color, is_best),
+    };
     let answer = if let Some(got) = run_result.got {
         got.to_string().color(run_result.result.color())
     } else {
@@ -306,8 +236,8 @@ fn make_problem_result(solutions: &[RunResult]) -> (FinalResult, i32) {
                     best_time = sln.cost;
                     best_index = i as i32;
                 }
-
             }
+            FinalResult::None => {} // skip None result, not run yet
             _ => {
                 result = sln.result.clone();
                 break;
@@ -380,7 +310,7 @@ fn print_result(
     (correct_count, solutions.len() as i32)
 }
 
-fn do_run(pids: Vec<i64>, timeout_ms: u64, check_answers: bool) {
+fn do_run(pids: Vec<ProblemSelection>, timeout_ms: u64, check_answers: bool) {
     let rt = runtime::Builder::new_current_thread()
         .enable_time()
         .build()
@@ -408,13 +338,20 @@ fn do_run(pids: Vec<i64>, timeout_ms: u64, check_answers: bool) {
 
     let start_time = time::Instant::now();
     for problem in problems::all_problems().iter() {
-        if !pids.is_empty() && !pids.contains(&problem.id) {
+        if !pids.is_empty() && !pids.iter().any(|sel| sel.check(problem)) {
             continue;
         }
 
         let mut solutions = make_run_results(problem);
         let problem_time_start = time::Instant::now();
-        for sln in solutions.iter_mut() {
+        for (index, sln) in solutions.iter_mut().enumerate() {
+            let flag = pids
+            .iter()
+            .any(|sel| sel.check(problem) && sel.check_run_result(index, sln));
+            if !pids.is_empty() && !flag {
+                continue;
+            }
+
             let sln_timeout_ms = timeout_ms + problem.extra_time_ms;
             rt.block_on(run_solution(sln, sln_timeout_ms, check_answers));
             // run correct solutions again to get more accurate time cost.
@@ -545,18 +482,6 @@ fn action_confirm(action: &str, accept_word: &str) -> bool {
     result
 }
 
-impl Problem {
-    fn from_id(pid: i64) -> Problem {
-        Problem {
-            id: pid,
-            title: "",
-            answer: 0,
-            extra_time_ms: 0,
-            solutions: vec![],
-        }
-    }
-}
-
 fn print_action(action: &management::FileAction, path: &str) {
     println!("{:>8} {}", action.to_string(), path);
 }
@@ -671,7 +596,7 @@ fn main() {
             let timeout_ms = if no_timeout {
                 0
             } else {
-                match parse_duration(&timeout_str) {
+                match launcher::parse_duration(&timeout_str) {
                     Ok(ms) => ms,
                     Err(e) => {
                         eprintln!("invalid timeout '{}': {}", timeout_str, e);
@@ -683,7 +608,13 @@ fn main() {
                 colored::control::set_override(true);
             }
 
-            do_run(pids, timeout_ms, check_answers);
+            let mut solution_selection = Vec::new();
+            for pid_str in pids {
+                let sel = ProblemSelection::parse(&pid_str).unwrap();
+                solution_selection.push(sel);
+            }
+
+            do_run(solution_selection, timeout_ms, check_answers);
         }
 
         Command::List { pids } => do_list(pids),
@@ -707,19 +638,5 @@ fn main() {
 
             do_add(pid, &title_str, answer, &solutions, dry_run);
         }
-    }
-}
-
-#[cfg(test)]
-mod tests {
-    use super::*;
-
-    #[test]
-    fn test_parse_duration() {
-        assert_eq!(parse_duration("100").unwrap(), 100_000);
-        assert_eq!(parse_duration("100ms").unwrap(), 100);
-        assert_eq!(parse_duration("1s").unwrap(), 1000);
-        assert!(parse_duration("abc").is_err());
-        assert!(parse_duration("1m").is_err());
     }
 }
