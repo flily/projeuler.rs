@@ -31,7 +31,7 @@ fn number_words(n: i64) -> String {
     }
 }
 
-fn number_in_englist_1000(n: i64) -> String {
+fn number_in_english_1000(n: i64) -> String {
     if n == 1000 {
         return String::from("one thousand");
     }
@@ -42,17 +42,17 @@ fn number_in_englist_1000(n: i64) -> String {
         let hundreds = m / 100;
         result.push(number_words(hundreds));
         result.push(String::from("hundred"));
-        m = m % 100;
+        m %= 100;
     }
 
     if m != 0 {
-        if result.len() > 0 {
+        if !result.is_empty() {
             result.push(String::from("and"));
         }
 
         if m >= 20 {
             let tens = m / 10 * 10;
-            m = m % 10;
+            m %= 10;
 
             result.push(number_words(tens));
             if m != 0 {
@@ -75,7 +75,7 @@ pub fn solve() -> i64 {
     let mut result = 0;
 
     for i in 1..=1000 {
-        let s = number_in_englist_1000(i);
+        let s = number_in_english_1000(i);
         let c = count_letters(&s) as i64;
         result += c;
     }
