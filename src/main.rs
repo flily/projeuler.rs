@@ -47,6 +47,9 @@ enum Command {
         /// known answer for the problem
         #[arg(short = 'a', long = "answer", default_value_t = 0)]
         answer: i64,
+        /// Accept the action without confirmation. If not set, the tool will show the files to be created and ask for confirmation before creating them.
+        #[arg(short = 'y', long = "yes", default_value_t = false)]
+        auto_confirm: bool,
         /// do not generate a solution file for the problem
         #[arg(short = 'd', long = "dry-run", default_value_t = false)]
         dry_run: bool,
@@ -486,7 +489,7 @@ fn print_action(action: &management::FileAction, path: &str) {
     println!("{:>8} {}", action.to_string(), path);
 }
 
-fn do_add(pid: i64, title: &str, answer: i64, sln_names: &[String], dry_run: bool) {
+fn do_add(pid: i64, title: &str, answer: i64, sln_names: &[String], auto_confirm: bool, dry_run: bool) {
     let title_static: &'static str = Box::leak(Box::new(title.to_string()));
     let solutions: Vec<SolutionInfo> = sln_names
         .iter()
@@ -520,7 +523,7 @@ fn do_add(pid: i64, title: &str, answer: i64, sln_names: &[String], dry_run: boo
         return;
     }
 
-    if action_count > 1 && !action_confirm("create template files showed above", "yes") {
+    if action_count > 1 && !auto_confirm && !action_confirm("create template files showed above", "yes") {
         return;
     }
 
@@ -627,6 +630,7 @@ fn main() {
             pid,
             title,
             answer,
+            auto_confirm,
             dry_run,
             solutions,
         } => {
@@ -636,7 +640,7 @@ fn main() {
                 title
             };
 
-            do_add(pid, &title_str, answer, &solutions, dry_run);
+            do_add(pid, &title_str, answer, &solutions, auto_confirm, dry_run);
         }
     }
 }
