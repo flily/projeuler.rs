@@ -136,6 +136,8 @@ async fn run_solution(run_result: &mut RunResult, timeout_ms: u64, check_answer:
                 } else {
                     FinalResult::Wrong
                 };
+            } else {
+                run_result.result = FinalResult::Unknown;   // we got a result but not checked
             }
         }
         Err(true) => {

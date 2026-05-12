@@ -6,7 +6,8 @@ use super::problem::{Problem, Solution, SolutionInfo};
 
 #[derive(Clone)]
 pub enum FinalResult {
-    None,
+    None,       // Not run yet
+    Unknown,    // Run but not checked
     Correct,
     Wrong,
     Timeout,
@@ -17,6 +18,7 @@ impl FinalResult {
     pub fn to_string(&self) -> &str {
         match self {
             FinalResult::None => "-",
+            FinalResult::Unknown => "?",
             FinalResult::Correct => "correct",
             FinalResult::Wrong => "wrong",
             FinalResult::Timeout => "timeout",
@@ -27,6 +29,7 @@ impl FinalResult {
     pub fn color(&self) -> colored::Color {
         match self {
             FinalResult::Correct => Color::Green,
+            FinalResult::Unknown => Color::Yellow,
             FinalResult::Wrong => Color::Red,
             FinalResult::Timeout => Color::Yellow,
             FinalResult::Crash => Color::Red,
