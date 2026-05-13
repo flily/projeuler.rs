@@ -255,8 +255,8 @@ fn make_problem_result(solutions: &[RunResult]) -> (FinalResult, i32) {
 
 fn print_one_solution_problem(problem: &common::Problem, run_result: &RunResult, timeout_ms: u64) {
     let total_timeout = timeout_ms + problem.extra_time_ms;
-    let pid = run_result.result.color_on(&problem.id.to_string());
-    let title = problem.title;
+    let pid = run_result.result.color_on(&problem.id.to_string().bold());
+    let title = problem.title.on_color(run_result.result.color());
     let result = run_result.result.color_string();
     let cost_color = cost_time_color(run_result.cost, total_timeout);
     let cost = color_cost_time(run_result.cost, cost_color, matches!(run_result.result, FinalResult::Correct));
@@ -274,7 +274,7 @@ fn print_one_solution_problem(problem: &common::Problem, run_result: &RunResult,
     match run_result.result {
          FinalResult::Correct => println!(
             "| {:>4} | {:<40} | {:^14} | {:^9} | {:>12} |{}",
-            pid, title.on_color(run_result.result.color()).bold(), answer, result, cost, extra_timeout,
+            pid, title.bold(), answer, result, cost, extra_timeout,
         ),
         _ => println!(
             "| {:>4} | {:<40} | {:^14} | {:^9} | {:>12} |{}",
@@ -354,6 +354,11 @@ fn do_run(pids: Vec<ProblemSelection>, timeout_ms: u64, check_answers: bool) {
             .iter()
             .any(|sel| sel.check(problem) && sel.check_run_result(index, sln));
             if !pids.is_empty() && !flag {
+                continue;
+            }
+
+            if sln.solution.starts_with("_") {
+                // skip solution with name start with "_", treat it as unfinished or not suggested to run.
                 continue;
             }
 
