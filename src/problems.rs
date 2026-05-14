@@ -22,6 +22,8 @@ pub mod p0021;
 pub mod p0022;
 pub mod p0023;
 pub mod p0024;
+pub mod p0025;
+pub mod p0026;
 pub mod p0065;
 pub mod p0067;
 pub mod p0074;
@@ -55,6 +57,8 @@ pub fn all_problems() -> Vec<&'static Problem> {
         &p0022::INFO,
         &p0023::INFO,
         &p0024::INFO,
+        &p0025::INFO,
+        &p0026::INFO,
         &p0065::INFO,
         &p0067::INFO,
         &p0074::INFO,

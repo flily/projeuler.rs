@@ -16,7 +16,7 @@ const LIMIT: i64 = 1_000_000;
 pub fn solve() -> i64 {
     let mut digits_left = 9;
     let mut numbers_left = LIMIT - 1;
-    let mut digits_use = vec![false; 10];
+    let mut digits_use = [false; 10];
     let mut digits_pick = Vec::new();
 
     while digits_left >= 0 {
