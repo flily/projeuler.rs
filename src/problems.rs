@@ -28,6 +28,7 @@ pub mod p0065;
 pub mod p0067;
 pub mod p0074;
 pub mod p0092;
+pub mod p0099;
 
 use crate::common::Problem;
 
@@ -63,5 +64,6 @@ pub fn all_problems() -> Vec<&'static Problem> {
         &p0067::INFO,
         &p0074::INFO,
         &p0092::INFO,
+        &p0099::INFO,
     ]
 }
