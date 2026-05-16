@@ -2,8 +2,9 @@ use crate::common::{Problem, SolutionInfo};
 
 mod nums;
 
-mod tpbigintlib;
+mod tpnumbigint;
 mod stringint;
+mod tpmalachite;
 
 pub static INFO: std::sync::LazyLock<Problem> = std::sync::LazyLock::new(|| Problem {
     id: 13,
@@ -12,12 +13,16 @@ pub static INFO: std::sync::LazyLock<Problem> = std::sync::LazyLock::new(|| Prob
     extra_time_ms: 0,
     solutions: vec![
         SolutionInfo {
-            name: "BitInt (num-bigint)",
-            entry: tpbigintlib::solve,
+            name: "BigInt (num-bigint)",
+            entry: tpnumbigint::solve,
         },
         SolutionInfo {
             name: "bigint by Vec<u8>",
             entry: stringint::solve,
+        },
+        SolutionInfo {
+            name: "BigInt (malachite)",
+            entry: tpmalachite::solve,
         },
     ],
 });

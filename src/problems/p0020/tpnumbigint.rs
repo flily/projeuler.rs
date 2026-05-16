@@ -1,6 +1,5 @@
 use num_bigint::BigInt;
 
-
 fn factorial(n: i64) -> BigInt {
     let mut result = BigInt::from(1);
     for i in 2..=n {
