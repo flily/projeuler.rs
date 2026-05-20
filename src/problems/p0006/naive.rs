@@ -1,10 +1,10 @@
 pub fn solve() -> i64 {
-    let mut square_sum = 0i64;
+    let mut square_sum = 0;
     for i in 1..101 {
         square_sum += i * i;
     }
 
-    let mut sum_square = 0i64;
+    let mut sum_square = 0;
     for i in 1..101 {
         sum_square += i;
     }

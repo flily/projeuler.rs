@@ -58,9 +58,9 @@ fn remove_factor(n: i64, f: i64) -> i64 {
 pub fn solve() -> i64 {
     let mut table = PrimeTable::new(1000);
 
-    let mut last = 1i64;
+    let mut last = 1;
     let mut n = NUMBER;
-    let mut i = 3i64;
+    let mut i = 3;
     while n > 0 && i <= n {
         if table.is_prime(i) && n % i == 0 {
             last = i;

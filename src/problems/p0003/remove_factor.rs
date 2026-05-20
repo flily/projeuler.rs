@@ -29,8 +29,8 @@ fn remove_factor(n: i64, f: i64) -> i64 {
 pub fn solve() -> i64 {
     let n = NUMBER;
 
-    let mut i = 3i64;
-    let mut last = 3i64;
+    let mut i = 3;
+    let mut last = 3;
     let mut m = n;
 
     while m > 0 && i <= m {

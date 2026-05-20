@@ -32,7 +32,7 @@ pub fn solve() -> i64 {
 
     let mut result = 0;
     let base = sum.len() - 10;
-    let ten = 10i64;
+    let ten = 10_i64;
     for (i, _) in sum.iter().enumerate().skip(base) {
         let c = sum[i] as i64;
         result += c * ten.pow((i - base) as u32);

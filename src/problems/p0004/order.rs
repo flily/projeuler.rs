@@ -15,8 +15,8 @@ fn is_palindrome(n: i64) -> bool {
 }
 
 pub fn solve() -> i64 {
-    let mut i = 0i64;
-    let mut j = 0i64;
+    let mut i = 0;
+    let mut j = 0;
 
     while i < 999 && j < 999 {
         let mut x = 999 - i;

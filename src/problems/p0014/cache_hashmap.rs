@@ -2,7 +2,7 @@ use std::collections::HashMap;
 
 fn collatz_seq_size(cache: &mut HashMap<i64, i64>, n: i64) -> i64 {
     let mut m = n;
-    let mut result = 1i64;
+    let mut result = 1;
 
     while m > 1 {
         match cache.get(&m) {
@@ -29,8 +29,8 @@ pub fn solve() -> i64 {
     cache.insert(2, 2);
     cache.insert(3, 9);
     cache.insert(4, 4);
-    let mut max_size = 0i64;
-    let mut result = 0i64;
+    let mut max_size = 0;
+    let mut result = 0;
 
     for i in 1..LIMIT {
         let size = collatz_seq_size(&mut cache, i);

@@ -1,7 +1,7 @@
 use super::load;
 
 fn name_score(name: &str) -> i64 {
-    let mut result = 0i64;
+    let mut result = 0;
 
     for c in name.chars() {
         result += (c as u8 - b'A' + 1) as i64;
@@ -11,7 +11,7 @@ fn name_score(name: &str) -> i64 {
 }
 
 pub fn solve() -> i64 {
-    let mut result = 0i64;
+    let mut result = 0;
 
     let mut names = load();
     names.sort();

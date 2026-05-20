@@ -1,6 +1,6 @@
 fn is_palindrome(n: i64) -> bool {
     let mut a = n;
-    let mut b = 0i64;
+    let mut b = 0;
 
     while a > 0 {
         let c = a % 10;
@@ -12,7 +12,7 @@ fn is_palindrome(n: i64) -> bool {
 }
 
 pub fn solve() -> i64 {
-    let mut max_num = 0i64;
+    let mut max_num = 0;
 
     for i in 100..1000 {
         for j in 100..1000 {
@@ -27,8 +27,8 @@ pub fn solve() -> i64 {
 }
 
 pub fn solve_reverse_vec() -> i64 {
-    let mut max_num = 0i64;
-    let mut max_j = 999i64;
+    let mut max_num = 0;
+    let mut max_j = 999;
 
     for i in (100..1000).rev() {
         for j in (100..i).rev() {
@@ -48,10 +48,10 @@ pub fn solve_reverse_vec() -> i64 {
 }
 
 pub fn solve_reverse_loop() -> i64 {
-    let mut max_num = 0i64;
-    let mut max_j = 999i64;
+    let mut max_num = 0;
+    let mut max_j = 999;
 
-    let (mut i, mut j) = (999i64, 999i64);
+    let (mut i, mut j) = (999, 999);
 
     while i >= 100 {
         while j >= 100 {

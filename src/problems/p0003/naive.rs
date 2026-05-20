@@ -20,8 +20,8 @@ fn is_prime(n: i64) -> bool {
 pub fn solve() -> i64 {
     let n = NUMBER;
 
-    let mut i = 3i64;
-    let mut last = 3i64;
+    let mut i = 3;
+    let mut last = 3;
 
     while 2 * i <= n {
         if n % i == 0 && is_prime(i) {

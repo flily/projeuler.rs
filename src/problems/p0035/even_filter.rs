@@ -24,7 +24,7 @@ fn is_circular_prime(n: i64) -> bool {
     let size = ((n as f64).log10().floor() as i64) + 1;
     for _ in 0..size {
         let last = m % 10;
-        m = (m / 10) + last * (10i64.pow(size as u32 - 1));
+        m = (m / 10) + last * (10_i64.pow(size as u32 - 1));
         if !is_prime(m) {
             return false;
         }

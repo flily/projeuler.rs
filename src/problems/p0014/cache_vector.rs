@@ -1,6 +1,6 @@
 fn collatz_seq_size(cache: &mut [i64], n: i64) -> i64 {
     let mut m = n;
-    let mut result = 1i64;
+    let mut result = 1;
 
     while m > 1 {
         let item = if m < cache.len() as i64 {
@@ -31,8 +31,8 @@ pub fn solve() -> i64 {
     cache[2] = 2;
     cache[3] = 9;
     cache[4] = 4;
-    let mut max_size = 0i64;
-    let mut result = 0i64;
+    let mut max_size = 0;
+    let mut result = 0;
 
     for i in 1..LIMIT {
         let size = collatz_seq_size(&mut cache, i);
