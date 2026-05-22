@@ -1,5 +1,5 @@
 pub fn digit_square_sum(n: i64) -> i64 {
-    let mut result = 0i64;
+    let mut result = 0;
     let mut m = n;
 
     while m > 0 {

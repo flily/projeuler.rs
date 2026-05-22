@@ -5,7 +5,7 @@ static FACTORIALS: [i64; 10] = [
 ];
 
 fn factorial_sum(n: i64) -> i64 {
-    let mut result = 0i64;
+    let mut result = 0;
     let mut m = n;
 
     while m > 0 {
@@ -17,7 +17,7 @@ fn factorial_sum(n: i64) -> i64 {
 }
 
 fn factorial_sum_chain_size(n: i64, cache: &mut FxHashMap<i64, i64>) -> i64 {
-    let mut count = 0i64;
+    let mut count = 0;
     let mut seen = FxHashSet::default();
     let mut m = n;
 
@@ -38,7 +38,7 @@ fn factorial_sum_chain_size(n: i64, cache: &mut FxHashMap<i64, i64>) -> i64 {
 }
 
 pub fn solve() -> i64 {
-    let mut count = 0i64;
+    let mut count = 0;
     let mut cache = FxHashMap::default();
     for i in 1..1000000 {
         if factorial_sum_chain_size(i, &mut cache) == 60 {

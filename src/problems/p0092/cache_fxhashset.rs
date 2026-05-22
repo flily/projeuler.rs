@@ -25,7 +25,7 @@ fn check_chains(n: i64, set1: &mut FxHashSet<i64>, set89: &mut FxHashSet<i64>) -
 static LIMIT: i64 = 10_000_000;
 
 pub fn solve() -> i64 {
-    let mut result = 0i64;
+    let mut result = 0;
 
     let mut set1 = FxHashSet::default();
     let mut set89 = FxHashSet::default();

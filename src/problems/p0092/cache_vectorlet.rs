@@ -3,7 +3,7 @@ use std::vec;
 use super::common::digit_square_sum;
 
 static LIMIT: i64 = 10_000_000;
-static VECTOR_SIZE: usize = ((8 * 81) + 1) as usize;
+static VECTOR_SIZE: usize = ((7 * 81) + 1) as usize;
 
 fn check_chains(n: i64, set1: &mut [u8], set89: &mut [u8]) -> bool {
     let mut m = n;
@@ -28,8 +28,8 @@ fn check_chains(n: i64, set1: &mut [u8], set89: &mut [u8]) -> bool {
 }
 
 pub fn solve() -> i64 {
-    let mut result = 0i64;
-    let vsize = ((8 * 81) + 1) as usize;
+    let mut result = 0;
+    let vsize = VECTOR_SIZE;
 
     let mut set1 = vec![0; vsize];
     let mut set89 = vec![0; vsize];

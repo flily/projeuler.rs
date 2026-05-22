@@ -25,7 +25,7 @@ fn check_chains(n: i64, set1: &mut HashSet<i64>, set89: &mut HashSet<i64>) -> bo
 static LIMIT: i64 = 10_000_000;
 
 pub fn solve() -> i64 {
-    let mut result = 0i64;
+    let mut result = 0;
 
     let mut set1 = HashSet::with_capacity(LIMIT as usize);
     let mut set89 = HashSet::with_capacity(LIMIT as usize);

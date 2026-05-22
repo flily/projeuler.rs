@@ -12,7 +12,7 @@ fn check_chains(n: i64) -> bool {
 static LIMIT: i64 = 10_000_000;
 
 pub fn solve() -> i64 {
-    let mut result = 0i64;
+    let mut result = 0;
 
     for i in 1..LIMIT {
         if check_chains(i) {
