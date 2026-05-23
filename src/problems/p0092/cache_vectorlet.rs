@@ -5,39 +5,32 @@ use super::common::digit_square_sum;
 static LIMIT: i64 = 10_000_000;
 static VECTOR_SIZE: usize = ((7 * 81) + 1) as usize;
 
-fn check_chains(n: i64, set1: &mut [u8], set89: &mut [u8]) -> bool {
+fn check_chains(n: i64) -> bool {
     let mut m = n;
-    let mut ok1 = false;
-    let mut ok89 = false;
-
-    while !ok1 && !ok89 {
+    while m != 1 && m != 89 {
         m = digit_square_sum(m);
-        ok1 = set1[m as usize] == 1;
-        ok89 = set89[m as usize] == 1;
     }
 
-    if n < VECTOR_SIZE as i64 {
-        if ok89 {
-            set89[n as usize] = 1;
-        } else {
-            set1[n as usize] = 1;
-        }
-    }
-
-    ok89
+    m == 89
 }
 
 pub fn solve() -> i64 {
     let mut result = 0;
     let vsize = VECTOR_SIZE;
 
-    let mut set1 = vec![0; vsize];
-    let mut set89 = vec![0; vsize];
-    set1[1] = 1;
-    set89[89] = 1;
+    let mut set89 = vec![false; vsize];
+    set89[89] = true;
 
-    for i in 1..LIMIT {
-        if check_chains(i, &mut set1, &mut set89) {
+    for i in 1..vsize as i64 {
+        if check_chains(i) {
+            set89[i as usize] = true;
+            result += 1;
+        }
+    }
+
+    for i in VECTOR_SIZE as i64..LIMIT {
+        let s = digit_square_sum(i);
+        if set89[s as usize] {
             result += 1;
         }
     }

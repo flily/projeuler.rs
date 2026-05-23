@@ -5,6 +5,8 @@ mod common;
 mod naive;
 mod cache_hashset;
 mod cache_fxhashset;
+// mod cache_ahash;     // enable and run cargo add ahash
+// mod cache_rapidhash; // enable and run cargo add rapidhash
 mod cache_vector;
 mod cache_vectorlet;
 
@@ -26,6 +28,14 @@ pub static INFO: std::sync::LazyLock<Problem> = std::sync::LazyLock::new(|| Prob
             name: "with cache (FxHashSet)",
             entry: cache_fxhashset::solve,
         },
+        // SolutionInfo {
+        //     name: "with cache (AHash)",
+        //     entry: cache_ahash::solve,
+        // },
+        // SolutionInfo {
+        //     name: "with cache (RapidHash)",
+        //     entry: cache_rapidhash::solve,
+        // },
         SolutionInfo {
             name: "with cache (Vector)",
             entry: cache_vector::solve,

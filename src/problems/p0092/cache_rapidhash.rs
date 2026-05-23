@@ -1,4 +1,4 @@
-use rapidhash::RapidHashSet;
+use rapidhash::{HashSetExt, RapidHashSet};
 
 use super::common::digit_square_sum;
 
