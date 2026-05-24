@@ -1,67 +1,5 @@
-use std::time;
-
-use colored::{Color, Colorize};
-
-use super::problem::{Problem, Solution, SolutionInfo};
-
-#[derive(Clone)]
-pub enum FinalResult {
-    None,       // Not run yet
-    Unknown,    // Run but not checked
-    Correct,
-    Wrong,
-    Timeout,
-    Crash,
-}
-
-impl FinalResult {
-    pub fn to_string(&self) -> &str {
-        match self {
-            FinalResult::None => "-",
-            FinalResult::Unknown => "?",
-            FinalResult::Correct => "correct",
-            FinalResult::Wrong => "wrong",
-            FinalResult::Timeout => "timeout",
-            FinalResult::Crash => "crash",
-        }
-    }
-
-    pub fn color(&self) -> colored::Color {
-        match self {
-            FinalResult::Correct => Color::Green,
-            FinalResult::Unknown => Color::Yellow,
-            FinalResult::Wrong => Color::Red,
-            FinalResult::Timeout => Color::Yellow,
-            FinalResult::Crash => Color::Red,
-            _ => Color::White,
-        }
-    }
-
-    pub fn color_string(&self) -> colored::ColoredString {
-        self.to_string().color(self.color())
-    }
-
-    pub fn color_on(&self, s: &str) -> colored::ColoredString {
-        s.color(self.color())
-    }
-}
-
-
-pub struct RunResult {
-    pub solution: &'static str,
-    pub entry: Solution,
-    pub answer: Option<i64>,
-    pub got: Option<i64>,
-    pub result: FinalResult,
-    pub cost: time::Duration,
-    pub extra_timeout_ms: u64,
-}
-
-impl RunResult {
-    pub fn check(&self, result: i64) -> bool {
-        result == self.answer.unwrap()
-    }
-}
+use super::problem::{Problem, SolutionInfo};
+use crate::worker::{FinalResult, RunResult};
 
 pub fn parse_duration(s: &str) -> Result<u64, String> {
     let s = s.trim();
@@ -287,7 +225,7 @@ impl ProblemSelection {
 
     pub fn check_solution(&self, index: usize, solution: &SolutionInfo) -> bool {
         if let Some(solutions) = &self.solutions {
-            for  sel_sol in solutions {
+            for sel_sol in solutions {
                 if sel_sol.contains_str(solution.name) {
                     return true;
                 }
@@ -295,15 +233,17 @@ impl ProblemSelection {
                     return true;
                 }
             }
-        }
 
-        false
+            false
+        } else {
+            true
+        }
     }
 
     pub fn check_run_result(&self, index: usize, result: &RunResult) -> bool {
         if let Some(solutions) = &self.solutions {
-            for  sel_sol in solutions {
-                if sel_sol.contains_str(result.solution) {
+            for sel_sol in solutions {
+                if sel_sol.contains_str(&result.solution) {
                     return true;
                 }
                 if sel_sol.contains_i64(index as i64) {

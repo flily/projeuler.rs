@@ -1,5 +1,6 @@
-use std::io::{self, BufRead, Write};
+use std::io::{self, BufRead, Read, Write};
 use std::time;
+use std::net::{TcpListener, TcpStream};
 
 use clap::{Parser, Subcommand};
 use colored::{Color, Colorize};
@@ -7,12 +8,14 @@ use tokio::{time::timeout, runtime};
 
 use crate::common::{Problem, SolutionInfo};
 use crate::common::launcher;
-use crate::common::launcher::{RunResult, FinalResult, ProblemSelection};
+use crate::common::launcher::ProblemSelection;
+use crate::worker::{Worker, FinalResult, RunResult, RunError};
 use management::ProblemManagement;
 
 mod common;
 mod problems;
 mod management;
+mod worker;
 
 const DEFAULT_TIMEOUT_MS: u64 = 500;
 
@@ -69,28 +72,16 @@ enum Command {
         #[arg(required = true)]
         pids: Vec<i64>,
     },
+    Worker {
+        #[arg(short = 'p', long = "port", default_value_t = 1707)]
+        port: u16,
+    }
 }
 
 #[derive(clap::Parser)]
 struct Args {
     #[command(subcommand)]
     command: Command,
-}
-
-
-fn make_run_results(info: &common::Problem) -> Vec<RunResult> {
-    info.solutions
-        .iter()
-        .map(|sln| RunResult {
-            solution: sln.name,
-            entry: sln.entry,
-            answer: Some(info.answer),
-            got: None,
-            result: FinalResult::None, // default to None, will be updated after running
-            cost: time::Duration::from_millis(0),
-            extra_timeout_ms: info.extra_time_ms,
-        })
-        .collect()
 }
 
 fn simple_run_solution(run_result: &mut RunResult) {
@@ -101,12 +92,13 @@ fn simple_run_solution(run_result: &mut RunResult) {
     run_result.cost = t1.elapsed();
 }
 
-async fn run_solution(run_result: &mut RunResult, timeout_ms: u64, check_answer: bool) {
-    let entry = run_result.entry;
+async fn run_solution(worker: &Worker, problem_id: i64, index: usize, timeout_ms: u64, check_answer: bool) -> RunResult {
+    let solution = worker.get_solution(problem_id, index).unwrap();
+    let mut run_result = worker.make_result(problem_id, index).unwrap();
 
     let t1 = time::Instant::now();
     let task = tokio::task::spawn_blocking(move || {
-        std::panic::catch_unwind(entry)
+        std::panic::catch_unwind(solution.entry)
     });
 
     // Ok(val)    => completed successfully
@@ -147,6 +139,8 @@ async fn run_solution(run_result: &mut RunResult, timeout_ms: u64, check_answer:
             run_result.result = FinalResult::Crash;
         }
     }
+
+    run_result
 }
 
 fn cost_time_color(cost: time::Duration, timeout_ms: u64) -> colored::Color {
@@ -342,40 +336,46 @@ fn do_run(pids: Vec<ProblemSelection>, timeout_ms: u64, check_answers: bool) {
     let mut count_solutions_succ = 0;
 
     let start_time = time::Instant::now();
-    for problem in problems::all_problems().iter() {
+    let worker = Worker::on_static(problems::all_problems());
+    for problem in worker.problems.iter() {
         if !pids.is_empty() && !pids.iter().any(|sel| sel.check(problem)) {
             continue;
         }
 
-        let mut solutions = make_run_results(problem);
+        // let mut solutions = problem.make_run_result_list();
+
+        let mut results = Vec::new();
         let problem_time_start = time::Instant::now();
-        for (index, sln) in solutions.iter_mut().enumerate() {
+        for (index, sln) in problem.solutions.iter().enumerate() {
             let flag = pids
-            .iter()
-            .any(|sel| sel.check(problem) && sel.check_run_result(index, sln));
+                .iter()
+                .any(|sel| sel.check(problem) && sel.check_solution(index, sln));
             if !pids.is_empty() && !flag {
                 continue;
             }
 
-            if sln.solution.starts_with("_") {
+            if sln.name.starts_with("_") {
                 // skip solution with name start with "_", treat it as unfinished or not suggested to run.
                 continue;
             }
 
             let sln_timeout_ms = timeout_ms + problem.extra_time_ms;
-            rt.block_on(run_solution(sln, sln_timeout_ms, check_answers));
+            let mut run_result = rt.block_on(
+                run_solution(&worker, problem.id, index, sln_timeout_ms, check_answers),
+            );
             // run correct solutions again to get more accurate time cost.
-            match sln.result {
-                FinalResult::Correct if sln.cost < time::Duration::from_micros(5) => {
+            match run_result.result {
+                FinalResult::Correct if run_result.cost < time::Duration::from_micros(5) => {
                     // only solutions use very short time can make big difference.
-                    simple_run_solution(sln);
+                    simple_run_solution(&mut run_result);
                 }
                 _ => {}
             }
+            results.push(run_result);
         }
         let problem_time = problem_time_start.elapsed();
 
-        let (correct_count, total_count) = print_result(problem, &solutions, timeout_ms, problem_time);
+        let (correct_count, total_count) = print_result(problem, &results, timeout_ms, problem_time);
 
         count_solutions_succ += correct_count;
         count_solutions += total_count;
@@ -592,6 +592,30 @@ fn do_delete(pids: Vec<i64>, full_delete: bool) {
     }
 }
 
+fn do_worker(port: u16) {
+    let addr = format!("127.0.0.1:{}", port);
+    let listener = TcpListener::bind(&addr)
+        .expect(&format!("failed to bind port {}", port));
+
+    let (mut stream, _) = listener.accept()
+        .expect("failed to accept connection");
+
+    let mut buf = [0u8; 1024];
+    loop {
+        if let Ok(length) = stream.read(&mut buf) {
+            let message = worker::message::parse_message(&buf[..length]);
+            match message {
+                Ok(msg) => {
+                    println!("Received message: {:?}", msg);
+                }
+                Err(e) => {
+                    println!("Failed to parse message: {:?}", e);
+                }
+            }
+        }
+    }
+}
+
 fn main() {
     let args = Args::parse();
 
@@ -648,6 +672,11 @@ fn main() {
             };
 
             do_add(pid, &title_str, answer, &solutions, auto_confirm, dry_run);
+        }
+        Command::Worker {
+            port,
+        } => {
+            do_worker(port);
         }
     }
 }

@@ -1,19 +1,21 @@
-use core::panic;
 use std::fs;
+use std::time;
 use std::panic::Location;
 use std::path::Path;
+
+use crate::worker::{FinalResult, RunResult};
 
 pub type Solution = fn() -> i64;
 
 static DATA_PATH_BASE: &str = "data";
 
-#[derive(Debug)]
+#[derive(Debug, Clone)]
 pub struct SolutionInfo {
     pub name: &'static str,
     pub entry: Solution,
 }
 
-#[derive(Debug)]
+#[derive(Debug, Clone)]
 pub struct Problem {
     pub id: i64,
     pub title: &'static str,
@@ -30,6 +32,38 @@ impl Problem {
             answer: 0,
             extra_time_ms: 0,
             solutions: vec![],
+        }
+    }
+
+    pub fn make_run_result_list(&self) -> Vec<RunResult> {
+        self.solutions
+            .iter()
+            .map(|sln| RunResult {
+                solution: sln.name.to_string(),
+                entry: sln.entry,
+                answer: Some(self.answer),
+                got: None,
+                result: FinalResult::None,
+                cost: time::Duration::from_secs(0),
+                extra_timeout_ms: self.extra_time_ms,
+            })
+            .collect()
+    }
+
+    pub fn make_run_result_for(&self, index: usize) -> Option<RunResult> {
+        if index >= self.solutions.len() {
+            None
+        } else {
+            let sln = &self.solutions[index];
+            Some(RunResult {
+                solution: sln.name.to_string(),
+                entry: sln.entry,
+                answer: Some(self.answer),
+                got: None,
+                result: FinalResult::None,
+                cost: time::Duration::from_secs(0),
+                extra_timeout_ms: self.extra_time_ms,
+            })
         }
     }
 }
