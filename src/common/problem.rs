@@ -50,12 +50,17 @@ impl Problem {
             .collect()
     }
 
-    pub fn make_run_result_for(&self, index: usize) -> Option<RunResult> {
+    pub fn get_solution(&self, index: usize) -> Option<SolutionInfo> {
         if index >= self.solutions.len() {
             None
         } else {
-            let sln = &self.solutions[index];
-            Some(RunResult {
+            Some(self.solutions[index].clone())
+        }
+    }
+
+    pub fn make_run_result_for(&self, index: usize) -> Option<RunResult> {
+        match self.get_solution(index) {
+            Some(sln) => Some(RunResult {
                 solution: sln.name.to_string(),
                 entry: sln.entry,
                 answer: Some(self.answer),
@@ -63,7 +68,8 @@ impl Problem {
                 result: FinalResult::None,
                 cost: time::Duration::from_secs(0),
                 extra_timeout_ms: self.extra_time_ms,
-            })
+            }),
+            None => None,
         }
     }
 }

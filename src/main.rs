@@ -4,12 +4,14 @@ use std::net::{TcpListener, TcpStream};
 
 use clap::{Parser, Subcommand};
 use colored::{Color, Colorize};
+use tokio::time::MissedTickBehavior::Skip;
 use tokio::{time::timeout, runtime};
 
 use crate::common::{Problem, SolutionInfo};
 use crate::common::launcher;
 use crate::common::launcher::ProblemSelection;
-use crate::worker::{Worker, FinalResult, RunResult, RunError};
+use crate::worker::message::{self, Message, MessageResult, ParsedMessage};
+use crate::worker::{FinalResult, RunError, RunResult, Worker, messenger};
 use management::ProblemManagement;
 
 mod common;
@@ -72,10 +74,23 @@ enum Command {
         #[arg(required = true)]
         pids: Vec<i64>,
     },
+    Client {
+        /// port to connect, default is 1707
+        #[arg(short = 'p', long = "port", default_value_t = 1707)]
+        port: u16,
+        #[arg(long = "pid", required = true)]
+        pid: i64,
+        #[arg(long = "sid", required = true)]
+        sid: i64,
+    },
     Worker {
         #[arg(short = 'p', long = "port", default_value_t = 1707)]
         port: u16,
-    }
+        #[arg(long = "pid", default_value_t = -1)]
+        pid: i64,
+        #[arg(long = "sid", default_value_t = 0)]
+        solution_id: usize,
+    },
 }
 
 #[derive(clap::Parser)]
@@ -592,26 +607,87 @@ fn do_delete(pids: Vec<i64>, full_delete: bool) {
     }
 }
 
-fn do_worker(port: u16) {
-    let addr = format!("127.0.0.1:{}", port);
-    let listener = TcpListener::bind(&addr)
+fn worker_test(worker: &Worker, pid: i64, solution_id: usize) {
+    let result = worker.run(pid, solution_id);
+    if result.is_err() {
+        println!("run_solution error: {:?}", result.err().unwrap());
+        return;
+    }
+
+    let run_result = result.unwrap();
+    println!("run_solution: {:?}", run_result);
+}
+
+fn do_worker(port: u16, pid: i64, solution_id: usize) {
+    let listener = messenger::MessengerListener::listen(port)
         .expect(&format!("failed to bind port {}", port));
 
-    let (mut stream, _) = listener.accept()
+    let worker = Worker::on_static(problems::all_problems());
+
+    if pid > 0 {
+        worker_test(&worker, pid, solution_id);
+        return;
+    }
+
+    let mut conn = listener.accept()
         .expect("failed to accept connection");
 
-    let mut buf = [0u8; 1024];
     loop {
-        if let Ok(length) = stream.read(&mut buf) {
-            let message = worker::message::parse_message(&buf[..length]);
-            match message {
-                Ok(msg) => {
-                    println!("Received message: {:?}", msg);
-                }
-                Err(e) => {
-                    println!("Failed to parse message: {:?}", e);
-                }
+        println!("Waiting for message...");
+        let r = conn.recv();
+        match r {
+            Ok(ParsedMessage::Ping(msg)) => {
+                let pong = msg.to_pong();
+                conn.send(&pong).expect("send pong failed")
             }
+            Ok(ParsedMessage::Run(msg)) => {
+                let pid = msg.problem_id as i64;
+                let sid = msg.solutions_id as usize;
+                println!("run problem {}, solution {}", pid, sid);
+                let result = worker.run(pid, sid);
+                println!("run result: {:?}", result);
+                let response = match result {
+                    Ok(run_result) => {
+                        msg.reply(run_result.cost, run_result.answer.unwrap(), message::MessageResultFlags::NONE)
+                    }
+                    Err(RunError::ProblemNotFound { problem_id }) => {
+                        MessageResult::problem_not_found(problem_id as i32)
+                    }
+                    Err(RunError::SolutionNotFound { problem_id, solution_id }) => {
+                        MessageResult::solution_not_found(problem_id as i32, solution_id as i32)
+                    }
+                    Err(_) => {
+                        // impossible
+                        MessageResult::problem_not_found(0)
+                    }
+                };
+                conn.send(&response).unwrap();
+            }
+            Ok(_) => {
+                println!("Received unexpected message");
+                break;
+            }
+            Err(e) => {
+                println!("Failed to receive message: {:?}", e);
+                break;
+            }
+        }
+    }
+}
+
+fn do_client(port: u16, pid: i64, sid: i64) {
+    let mut m = messenger::Messenger::connect(port)
+        .expect(&format!("failed to connect to {}", port));
+
+    m.ping().expect("ping failed");
+
+    let result = m.run(pid, sid as usize);
+    match result {
+        Ok(run_result) => {
+            println!("Run result: {:?}", run_result);
+        }
+        Err(e) => {
+            println!("Run error: {:?}", e);
         }
     }
 }
@@ -675,8 +751,17 @@ fn main() {
         }
         Command::Worker {
             port,
+            pid,
+            solution_id,
         } => {
-            do_worker(port);
+            do_worker(port, pid, solution_id);
+        }
+        Command::Client {
+            port,
+            pid,
+            sid,
+        } => {
+            do_client(port, pid, sid);
         }
     }
 }

@@ -39,7 +39,9 @@ pub trait Message: fmt::Debug + Clone{
 pub enum MessageError {
     InvalidMagicNumber,
     InvalidMessageType,
-    InvalidLength,
+    InvalidLength {
+        length: usize,
+    },
     IOError {
         source: std::io::Error,
     },
@@ -58,7 +60,9 @@ impl fmt::Display for MessageError {
         match self {
             MessageError::InvalidMagicNumber => write!(f, "Invalid magic number"),
             MessageError::InvalidMessageType => write!(f, "Invalid message type"),
-            MessageError::InvalidLength => write!(f, "Invalid message length"),
+            MessageError::InvalidLength {
+                length ,
+            } => write!(f, "Invalid message length: {}", length),
             MessageError::IOError {
                 source,
             } => write!(f, "IO error: {}", source),
@@ -119,7 +123,8 @@ impl Message for MessagePing {
             panic!("Invalid byte length for MessagePing");
         }
         let message_type = u16::from_be_bytes(bytes[4..6].try_into().unwrap());
-        if message_type != MessageType::Ping as u16 {
+        println!("Deserializing MessagePing: message_type={}, length={}", message_type, bytes.len());
+        if (message_type != MessageType::Ping as u16) && (message_type != MessageType::Pong as u16) {
             panic!("Invalid message type for MessagePing");
         }
         let seq = u64::from_be_bytes(bytes[8..16].try_into().unwrap());
@@ -180,7 +185,7 @@ impl Message for MessageRun {
     }
 
     fn total_length(&self) -> u16 {
-        8 + 8 + 8 + 4 + 4
+        8 + 4 + 4
     }
 
     fn serialize(&self) -> Vec<u8> {
@@ -248,6 +253,10 @@ impl MessageResultFlags {
     pub const NONE: Self = MessageResultFlags(0);
     pub const NOT_FOUND: Self = MessageResultFlags(1 << 0);
     pub const CRASHED: Self = MessageResultFlags(1 << 1);
+
+    pub fn empty(&self) -> bool {
+        self.0 == 0
+    }
 
     pub fn is_not_found(&self) -> bool {
         self.0 & Self::NOT_FOUND.0 != 0
@@ -372,7 +381,7 @@ pub enum ParsedMessage {
 
 pub fn parse_message(bytes: &[u8]) -> Result<ParsedMessage, MessageError> {
     if bytes.len() < 8 {
-        return Err(MessageError::InvalidLength);
+        return Err(MessageError::InvalidLength { length: bytes.len() });
     }
     
     let magic_number = &bytes[0..4];
@@ -419,7 +428,7 @@ mod tests {
         let run = MessageRun {
             header: MessageHeader {
                 message_type: MessageType::Run,
-                total_length: 32,
+                total_length: 16,
             },
             problem_id: 123,
             solutions_id: 456,
@@ -433,6 +442,6 @@ mod tests {
         assert_eq!(run.header.total_length, deserialized_run.header.total_length);
 
         assert_eq!(run.message_type(), MessageType::Run);
-        assert_eq!(run.total_length(), 32);
+        assert_eq!(run.total_length(), 16);
     }
 }

@@ -4,6 +4,8 @@ use colored::{Color, Colorize};
 
 use crate::common::Solution;
 
+use super::message;
+
 #[derive(Debug, Clone)]
 pub enum FinalResult {
     None,       // Not run yet
@@ -75,7 +77,7 @@ impl RunResult {
     }
 }
 
-#[derive(Debug, Clone)]
+#[derive(Debug)]
 pub enum RunError {
     ProblemNotFound {
         problem_id: i64,
@@ -84,4 +86,10 @@ pub enum RunError {
         problem_id: i64,
         solution_id: usize,
     },
+    NetworkError {
+        source: std::io::Error,
+    },
+    ProtocolMessageError {
+        source: message::MessageError,
+    }
 }
