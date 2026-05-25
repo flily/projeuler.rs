@@ -35,6 +35,12 @@ enum Command {
         /// check answers after running
         #[arg(short = 'c', long = "check", default_value_t = false)]
         check_answers: bool,
+        /// run in local mode without starting a worker process.
+        #[arg(short = 'l', long = "local", default_value_t = false)]
+        local_mode: bool,
+        /// port to start worker process and listen, default is 1707.
+        #[arg(short = 'p', long = "port", default_value_t = 1707)]
+        port: u16,
         /// always color the output, even when not running in a terminal
         #[arg(long = "color", default_value_t = false)]
         always_color: bool,
@@ -324,11 +330,103 @@ fn print_result(
     (correct_count, solutions.len() as i32)
 }
 
-fn do_run(pids: Vec<ProblemSelection>, timeout_ms: u64, check_answers: bool) {
-    let rt = runtime::Builder::new_current_thread()
-        .enable_time()
-        .build()
-        .expect("failed to create tokio runtime");
+enum WorkMode {
+    Local {
+        rt: runtime::Runtime
+    },
+    Remote {
+        client: messenger::Messenger,
+        child: std::process::Child,
+        port: u16,
+        progname: String,
+    },
+}
+
+struct RunContext {
+    mode: WorkMode,
+}
+
+impl RunContext {
+    pub fn local() -> Self {
+        Self {
+            mode: WorkMode::Local {
+                rt: runtime::Builder::new_current_thread()
+                    .enable_time()
+                    .build()
+                    .expect("failed to create tokio runtime"),
+            },
+        }
+    }
+
+    pub fn remote(progname: String, port: u16) -> Result<Self, std::io::Error> {
+        let child = RunContext::launch_worker(&progname, port)?;
+        std::thread::sleep(time::Duration::from_millis(100));
+
+        let client = messenger::Messenger::connect(port)?;
+        Ok(Self {
+            mode: WorkMode::Remote { client, child, port, progname },
+        })
+    }
+
+    pub fn launch_worker(progname: &String, port: u16) -> Result<std::process::Child, std::io::Error> {
+        let child = std::process::Command::new(progname)
+            .arg("worker")
+            .arg("-p")
+            .arg(port.to_string())
+            .spawn()
+            .expect("failed to start worker process");
+        Ok(child)
+    }
+
+    pub fn reconnect(&mut self) -> Result<(), std::io::Error> {
+        if let WorkMode::Remote { child,  port, progname, .. } = &mut self.mode {
+            child.kill()?;
+            let child = Self::launch_worker(progname, *port)?;
+            std::thread::sleep(time::Duration::from_millis(100));
+            let client = messenger::Messenger::connect(*port)?;
+            self.mode = WorkMode::Remote {
+                client,
+                child,
+                port: *port,
+                progname: progname.clone(),
+            };
+        }
+        Ok(())
+    }
+
+    fn run(&mut self, worker: &Worker, problem_id: i64, solution_id: usize, timeout_ms: u64) -> RunResult {
+        let result = match &mut self.mode {
+            WorkMode::Local { rt } => {
+                rt.block_on(run_solution(worker, problem_id, solution_id, timeout_ms, false))
+            }
+            WorkMode::Remote { client, .. } => {
+                match client.run(problem_id, solution_id) {
+                    Ok(run_result) => run_result,
+                    Err(e) => {
+                        println!("Run error: {:?}", e);
+                        RunResult::basic(0, time::Duration::from_secs(0))
+                    }
+                }
+            }
+        };
+
+        result
+    }
+
+    fn shutdown(self) {
+        match self.mode {
+            WorkMode::Local { rt } => {
+                rt.shutdown_background();
+            }
+            WorkMode::Remote { mut child, client, .. } => {
+                child.kill();
+                client.close();
+            }
+         }
+    }
+}
+
+fn do_run(ctx: &mut RunContext, pids: Vec<ProblemSelection>, timeout_ms: u64, check_answers: bool) {
     let sepline = "+".to_string()
         + &"-".repeat(4 + 2) + "+"      // PID
         + &"-".repeat(40 + 2) + "+"     // Title
@@ -359,7 +457,7 @@ fn do_run(pids: Vec<ProblemSelection>, timeout_ms: u64, check_answers: bool) {
 
         // let mut solutions = problem.make_run_result_list();
 
-        let mut results = Vec::new();
+        let mut results = Vec::<RunResult>::new();
         let problem_time_start = time::Instant::now();
         for (index, sln) in problem.solutions.iter().enumerate() {
             let flag = pids
@@ -375,17 +473,8 @@ fn do_run(pids: Vec<ProblemSelection>, timeout_ms: u64, check_answers: bool) {
             }
 
             let sln_timeout_ms = timeout_ms + problem.extra_time_ms;
-            let mut run_result = rt.block_on(
-                run_solution(&worker, problem.id, index, sln_timeout_ms, check_answers),
-            );
-            // run correct solutions again to get more accurate time cost.
-            match run_result.result {
-                FinalResult::Correct if run_result.cost < time::Duration::from_micros(5) => {
-                    // only solutions use very short time can make big difference.
-                    simple_run_solution(&mut run_result);
-                }
-                _ => {}
-            }
+            let run_result = ctx.run(&worker, problem.id, index, sln_timeout_ms);
+            
             results.push(run_result);
         }
         let problem_time = problem_time_start.elapsed();
@@ -428,8 +517,6 @@ fn do_run(pids: Vec<ProblemSelection>, timeout_ms: u64, check_answers: bool) {
     );
     let time_cost = format!("{:.3} ms", elapsed_time).yellow();
     println!("Total time: {}", time_cost);
-
-    rt.shutdown_background();
 }
 
 fn do_list(pids: Vec<i64>) {
@@ -701,6 +788,8 @@ fn main() {
             timeout_str,
             no_timeout,
             check_answers,
+            local_mode,
+            port,
             always_color,
         } => {
             let timeout_ms = if no_timeout {
@@ -724,7 +813,16 @@ fn main() {
                 solution_selection.push(sel);
             }
 
-            do_run(solution_selection, timeout_ms, check_answers);
+            let mut ctx = if local_mode {
+                RunContext::local()
+            } else {
+                println!("starting worker process on port {}...", port);
+                let progname = std::env::current_exe().unwrap();
+                RunContext::remote(progname.to_str().unwrap().to_string(), port).expect("")
+            };
+
+            do_run(&mut ctx, solution_selection, timeout_ms, check_answers);
+            ctx.shutdown();
         }
 
         Command::List { pids } => do_list(pids),

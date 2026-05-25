@@ -124,4 +124,8 @@ impl Messenger {
             }),
         }
     }
+
+    pub fn close(self) -> Result<(), std::io::Error> {
+        self.stream.shutdown(std::net::Shutdown::Both)
+    }
 }
