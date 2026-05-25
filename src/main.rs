@@ -315,7 +315,7 @@ fn print_result(
     (correct_count, solutions.len() as i32)
 }
 
-fn do_run(pids: Vec<ProblemSelection>, timeout_ms: u64, check_answers: bool) {
+fn do_run(pids: Vec<ProblemSelection>, timeout_ms: u64, check_answers: bool) -> i32 {
     let rt = runtime::Builder::new_current_thread()
         .enable_time()
         .build()
@@ -415,6 +415,7 @@ fn do_run(pids: Vec<ProblemSelection>, timeout_ms: u64, check_answers: bool) {
     println!("Total time: {}", time_cost);
 
     rt.shutdown_background();
+    count_problems - count_problems_succ
 }
 
 fn do_list(pids: Vec<i64>) {
@@ -624,7 +625,8 @@ fn main() {
                 solution_selection.push(sel);
             }
 
-            do_run(solution_selection, timeout_ms, check_answers);
+            let rc = do_run(solution_selection, timeout_ms, check_answers);
+            std::process::exit(rc);
         }
 
         Command::List { pids } => do_list(pids),
