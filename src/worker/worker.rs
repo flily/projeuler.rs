@@ -1,6 +1,6 @@
 use std::time;
 
-use crate::common::{Problem, Solution, SolutionInfo};
+use crate::{common::{Problem, Solution, SolutionInfo}, problems};
 
 use super::{FinalResult, RunResult, RunError};
 
@@ -19,6 +19,13 @@ impl Worker {
         Worker::on(ps)
     }
 
+    pub fn get_problem(&self, problem_id: i64) -> Result<Problem, RunError> {
+        match self.problems.iter().find(|p| p.id == problem_id) {
+            Some(p) => Ok(p.clone()),
+            None => Err(RunError::ProblemNotFound { problem_id }),
+        }
+    }
+
     pub fn get_solution(&self, problem_id: i64, solution_id: usize) -> Result<SolutionInfo, RunError> {
         let problem = self.problems.iter().find(|p| p.id == problem_id);
         if problem.is_none() {
@@ -26,20 +33,19 @@ impl Worker {
         }
 
         let problem = problem.unwrap();
-        if solution_id >= problem.solutions.len() {
-            return Err(RunError::SolutionNotFound { problem_id, solution_id });
+        match problem.get_solution(solution_id) {
+            Some(sln) => Ok(sln),
+            None => Err(RunError::SolutionNotFound { problem_id, solution_id }),
         }
-
-        Ok(problem.solutions[solution_id].clone())
     }
 
     pub fn make_result(&self, problem_id: i64, solution_id: usize) -> Result<RunResult, RunError> {
-        let problem = self.problems.iter().find(|p| p.id == problem_id);
-        if problem.is_none() {
-            return Err(RunError::ProblemNotFound { problem_id });
+        let problem = self.get_problem(problem_id)?;
+        let result = problem.make_run_result_for(solution_id);
+        if result.is_none() {
+            return Err(RunError::SolutionNotFound { problem_id, solution_id });
         }
 
-        let problem = problem.unwrap();
         let result = problem.make_run_result_for(solution_id);
         if result.is_none() {
             return Err(RunError::SolutionNotFound { problem_id, solution_id });
@@ -54,5 +60,29 @@ impl Worker {
             cost: time::Duration::from_secs(0),
             extra_timeout_ms: problem.extra_time_ms,
         })
+    }
+
+    pub fn run(&self, pid: i64, sid: usize) -> Result<RunResult, RunError> {
+        let problem = self.get_problem(pid)?;
+        let solution = problem.get_solution(sid);
+        if solution.is_none() {
+            return Err(RunError::SolutionNotFound { problem_id: pid, solution_id: sid });
+        }
+
+        let solution = solution.unwrap();
+        let mut result = problem.make_run_result_for(sid).unwrap();
+        let start = time::Instant::now();
+        let got = (solution.entry)();
+        let cost = start.elapsed();
+
+        result.got = Some(got);
+        result.cost = cost;
+        result.result = if result.check(got) {
+            FinalResult::Correct
+        } else {
+            FinalResult::Wrong
+        };
+
+        Ok(result)
     }
 }

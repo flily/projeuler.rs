@@ -58,6 +58,18 @@ pub struct RunResult {
 }
 
 impl RunResult {
+    pub fn basic(answer: i64, cost: time::Duration) -> Self {
+        Self {
+            solution: String::new(),
+            entry: || 0,
+            answer: Some(answer),
+            got: None,
+            result: FinalResult::Unknown,
+            cost,
+            extra_timeout_ms: 0,
+        }
+    }
+
     pub fn check(&self, result: i64) -> bool {
         result == self.answer.unwrap()
     }
