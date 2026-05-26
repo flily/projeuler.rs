@@ -1,8 +1,6 @@
-use std::{io::{Read, Write}, net::{TcpListener, TcpStream}};
+use std::io::{Read, Write};
+use std::net::{TcpListener, TcpStream};
 use std::time::Duration;
-use std::process;
-
-use regex::Error;
 
 use crate::worker::message::{MessageError, ParsedMessage};
 
@@ -21,21 +19,20 @@ impl MessengerListener {
     }
 
     pub fn accept(&self) -> Result<Messenger, std::io::Error> {
-        let (stream, remote) = self.listener.accept()?;
-        Ok(Messenger { stream, remote_addr: Some(remote) })
+        let (stream, _) = self.listener.accept()?;
+        Ok(Messenger { stream })
     }
 }
 
 pub struct Messenger {
     stream: std::net::TcpStream,
-    remote_addr: Option<std::net::SocketAddr>,
 }
 
 impl Messenger {
     pub fn connect(port: u16) -> Result<Self, std::io::Error> {
         let addr = format!("127.0.0.1:{}", port);
         let stream = TcpStream::connect(&addr)?;
-        Ok(Messenger { stream, remote_addr: None })
+        Ok(Messenger { stream })
     }
 
     pub fn send_raw(&mut self, data: &[u8]) -> Result<usize, std::io::Error> {
@@ -101,10 +98,7 @@ impl Messenger {
         self.send(&msg)
             .map_err(|e| result::RunError::NetworkError { source: e })?;
 
-        let extra_timeout = match timeout {
-            Some(t) => Some(t + Duration::from_millis(100)),
-            None => None,
-        };
+        let extra_timeout = timeout.map(|t| t + Duration::from_millis(50));
         self.set_recv_timeout(extra_timeout);
 
         let reply = self.recv()
@@ -130,7 +124,7 @@ impl Messenger {
                             Err(result::RunError::SolutionNotFound { problem_id, solution_id })
                         }
                     } else {
-                        Err(result::RunError::NetworkError { source: std::io::Error::new(std::io::ErrorKind::Other, "Invalid magic number") })
+                        Err(result::RunError::NetworkError { source: std::io::Error::other( "Invalid magic number") })
                     }
                 }
             },

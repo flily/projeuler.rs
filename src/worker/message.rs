@@ -28,7 +28,7 @@ pub fn write_beu64_duration(duration: time::Duration) -> [u8; 8] {
     bytes
 }
 
-pub trait Message: fmt::Debug + Clone{
+pub trait Message: Clone{
     fn message_type(&self) -> MessageType;
     fn total_length(&self) -> u16;
     fn serialize(&self) -> Vec<u8>;
@@ -85,7 +85,7 @@ impl fmt::Display for MessageError {
 // +-----------------+--------------+--------------+
 // | x45 x55 x17 x07 |   u16 (BE)   |   u16 (BE)   |
 // +-----------------+--------------+--------------+
-#[derive(Debug, Clone)]
+#[derive(Clone)]
 pub struct MessageHeader {
     pub message_type: MessageType,
     pub total_length: u16,
@@ -96,7 +96,7 @@ pub struct MessageHeader {
 // +------------------+-----------+
 // |  8 bytes header  |    u64    |
 // +------------------+-----------+
-#[derive(Debug, Clone)]
+#[derive(Clone)]
 pub struct MessagePing {
     pub header: MessageHeader,
     pub seq: u64,
@@ -104,7 +104,7 @@ pub struct MessagePing {
 
 impl Message for MessagePing {
     fn message_type(&self) -> MessageType {
-        self.header.message_type.clone()
+        self.header.message_type
     }
 
     fn total_length(&self) -> u16 {
@@ -115,7 +115,7 @@ impl Message for MessagePing {
         let mut bytes = Vec::new();
         bytes.extend_from_slice(&MAGIC_NUMBER);
         bytes.extend_from_slice(&(self.message_type() as u16).to_be_bytes());
-        bytes.extend_from_slice(&(self.total_length() as u16).to_be_bytes());
+        bytes.extend_from_slice(&self.total_length().to_be_bytes());
         bytes.extend_from_slice(&self.seq.to_be_bytes());
         bytes
     }
@@ -172,7 +172,7 @@ impl MessagePing {
 // +------------------+--------------+----------------+
 // |  8 bytes header  |     i32      |      i32       |
 // +------------------+--------------+----------------+
-#[derive(Debug, Clone)]
+#[derive(Clone)]
 pub struct MessageRun {
     pub header: MessageHeader,
     // pub problem_timeout: time::Duration,
@@ -183,7 +183,7 @@ pub struct MessageRun {
 
 impl Message for MessageRun {
     fn message_type(&self) -> MessageType {
-        self.header.message_type.clone()
+        self.header.message_type
     }
 
     fn total_length(&self) -> u16 {
@@ -194,7 +194,7 @@ impl Message for MessageRun {
         let mut bytes = Vec::new();
         bytes.extend_from_slice(&MAGIC_NUMBER);
         bytes.extend_from_slice(&(self.message_type() as u16).to_be_bytes());
-        bytes.extend_from_slice(&(self.total_length() as u16).to_be_bytes());
+        bytes.extend_from_slice(&self.total_length().to_be_bytes());
         bytes.extend_from_slice(&self.problem_id.to_be_bytes());
         bytes.extend_from_slice(&self.solutions_id.to_be_bytes());
         bytes
@@ -284,7 +284,7 @@ impl MessageResultFlags {
 // +------------------+---------------+------------+--------------+--------------+----------------+
 // |  8 bytes header  |      i64      |    i64     |     u64      |     i32      |      i32       |
 // +------------------+---------------+------------+--------------+--------------+----------------+
-#[derive(Debug, Clone)]
+#[derive(Clone)]
 pub struct MessageResult {
     pub header: MessageHeader,
     pub time_cost: time::Duration,
@@ -296,7 +296,7 @@ pub struct MessageResult {
 
 impl Message for MessageResult {
     fn message_type(&self) -> MessageType {
-        self.header.message_type.clone()
+        self.header.message_type
     }
 
     fn total_length(&self) -> u16 {
@@ -307,7 +307,7 @@ impl Message for MessageResult {
         let mut bytes = Vec::new();
         bytes.extend_from_slice(&MAGIC_NUMBER);
         bytes.extend_from_slice(&(self.message_type() as u16).to_be_bytes());
-        bytes.extend_from_slice(&(self.total_length() as u16).to_be_bytes());
+        bytes.extend_from_slice(&self.total_length().to_be_bytes());
         bytes.extend_from_slice(&write_beu64_duration(self.time_cost));
         bytes.extend_from_slice(&self.result.to_be_bytes());
         bytes.extend_from_slice(&self.flags.0.to_be_bytes());
@@ -373,7 +373,6 @@ impl MessageResult {
     }
 }
 
-#[derive(Debug)]
 pub enum ParsedMessage {
     Ping(MessagePing),
     Pong(MessagePing),
@@ -397,7 +396,7 @@ pub fn parse_message(bytes: &[u8]) -> Result<ParsedMessage, MessageError> {
         x if x == MessageType::Pong as u16 => Ok(ParsedMessage::Pong(MessagePing::deserialize(bytes))),
         x if x == MessageType::Run as u16 => Ok(ParsedMessage::Run(MessageRun::deserialize(bytes))),
         x if x == MessageType::Result as u16 => Ok(ParsedMessage::Result(MessageResult::deserialize(bytes))),
-        _ => return Err(MessageError::InvalidMessageType),
+        _ => Err(MessageError::InvalidMessageType),
     }
 }
 

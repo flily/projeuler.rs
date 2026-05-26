@@ -1,18 +1,13 @@
-use std::error;
-use std::io::{self, BufRead, Read, Write};
+use std::io::{self, BufRead, Write};
 use std::time::{self, Duration};
-use std::net::{TcpListener, TcpStream};
 
 use clap::{Parser, Subcommand};
 use colored::{Color, Colorize};
-use tokio::time::MissedTickBehavior::Skip;
 use tokio::{time::timeout, runtime};
 
 use crate::common::{Problem, SolutionInfo};
-use crate::common::launcher;
-use crate::common::launcher::ProblemSelection;
-use crate::worker::message::MessageType::Run;
-use crate::worker::message::{self, Message, MessageResult, ParsedMessage};
+use crate::common::launcher::{ProblemSelection, parse_duration};
+use crate::worker::message::{MessageResult, ParsedMessage, MessageResultFlags};
 use crate::worker::{FinalResult, RunError, RunResult, Worker, messenger};
 use management::ProblemManagement;
 
@@ -105,14 +100,6 @@ enum Command {
 struct Args {
     #[command(subcommand)]
     command: Command,
-}
-
-fn simple_run_solution(run_result: &mut RunResult) {
-    let entry = run_result.entry;
-
-    let t1 = time::Instant::now();
-    entry();
-    run_result.cost = t1.elapsed();
 }
 
 async fn run_solution(worker: &Worker, problem_id: i64, index: usize, timeout_ms: u64, check_answer: bool) -> RunResult {
@@ -395,7 +382,7 @@ impl RunContext {
     }
 
     fn run(&mut self, worker: &Worker, problem_id: i64, solution_id: usize, timeout_ms: u64) -> RunResult {
-        let result = match &mut self.mode {
+        match &mut self.mode {
             WorkMode::Local { rt } => {
                 rt.block_on(run_solution(worker, problem_id, solution_id, timeout_ms, false))
             }
@@ -420,7 +407,7 @@ impl RunContext {
                         result.cost = Duration::from_millis(timeout_ms);
                         result
                     }
-                    Err(RunError::ProtocolMessageError { source }) => {
+                    Err(RunError::ProtocolMessageError { .. }) => {
                         let mut result = worker.make_result(problem_id, solution_id).unwrap();
                         result.result = FinalResult::Crash;
                         result
@@ -432,9 +419,7 @@ impl RunContext {
                     }
                 }
             }
-        };
-
-        result
+        }
     }
 
     fn shutdown(self) {
@@ -759,7 +744,7 @@ fn do_worker(port: u16, pid: i64, solution_id: usize) {
                 let result = worker.run(pid, sid);
                 let response = match result {
                     Ok(run_result) => {
-                        msg.reply(run_result.cost, run_result.answer.unwrap(), message::MessageResultFlags::NONE)
+                        msg.reply(run_result.cost, run_result.answer.unwrap(), MessageResultFlags::NONE)
                     }
                     Err(RunError::ProblemNotFound { problem_id }) => {
                         MessageResult::problem_not_found(problem_id as i32)
@@ -819,7 +804,7 @@ fn main() {
             let timeout_ms = if no_timeout {
                 0
             } else {
-                match launcher::parse_duration(&timeout_str) {
+                match parse_duration(&timeout_str) {
                     Ok(ms) => ms,
                     Err(e) => {
                         eprintln!("invalid timeout '{}': {}", timeout_str, e);

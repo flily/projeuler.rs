@@ -35,21 +35,6 @@ impl Problem {
         }
     }
 
-    pub fn make_run_result_list(&self) -> Vec<RunResult> {
-        self.solutions
-            .iter()
-            .map(|sln| RunResult {
-                solution: sln.name.to_string(),
-                entry: sln.entry,
-                answer: Some(self.answer),
-                got: None,
-                result: FinalResult::None,
-                cost: time::Duration::from_secs(0),
-                extra_timeout_ms: self.extra_time_ms,
-            })
-            .collect()
-    }
-
     pub fn get_solution(&self, index: usize) -> Option<SolutionInfo> {
         if index >= self.solutions.len() {
             None
@@ -59,8 +44,7 @@ impl Problem {
     }
 
     pub fn make_run_result_for(&self, index: usize) -> Option<RunResult> {
-        match self.get_solution(index) {
-            Some(sln) => Some(RunResult {
+        self.get_solution(index).map(|sln| RunResult {
                 solution: sln.name.to_string(),
                 entry: sln.entry,
                 answer: Some(self.answer),
@@ -68,9 +52,7 @@ impl Problem {
                 result: FinalResult::None,
                 cost: time::Duration::from_secs(0),
                 extra_timeout_ms: self.extra_time_ms,
-            }),
-            None => None,
-        }
+        })
     }
 }
 

@@ -1,6 +1,6 @@
 use std::time;
 
-use crate::{common::{Problem, Solution, SolutionInfo}, problems};
+use crate::common::{Problem, SolutionInfo};
 
 use super::{FinalResult, RunResult, RunError};
 
@@ -11,7 +11,7 @@ pub struct Worker {
 
 impl Worker {
     pub fn on(problems: Vec<Problem>) -> Self {
-        Worker { problems: problems.iter().map(|p| p.clone()).collect() }
+        Worker { problems: problems.to_vec() }
     }
 
     pub fn on_static(problems: Vec<&'static Problem>) -> Self {

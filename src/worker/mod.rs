@@ -1,9 +1,9 @@
 pub mod message;
 pub mod messenger;
-pub mod worker;
+pub mod slnworker;
 pub mod result;
 
-pub use worker::Worker;
+pub use slnworker::Worker;
 pub use result::FinalResult;
 pub use result::RunResult;
 pub use result::RunError;

@@ -1,5 +1,4 @@
 use super::problem::{Problem, SolutionInfo};
-use crate::worker::{FinalResult, RunResult};
 
 pub fn parse_duration(s: &str) -> Result<u64, String> {
     let s = s.trim();
@@ -227,23 +226,6 @@ impl ProblemSelection {
         if let Some(solutions) = &self.solutions {
             for sel_sol in solutions {
                 if sel_sol.contains_str(solution.name) {
-                    return true;
-                }
-                if sel_sol.contains_i64(index as i64) {
-                    return true;
-                }
-            }
-
-            false
-        } else {
-            true
-        }
-    }
-
-    pub fn check_run_result(&self, index: usize, result: &RunResult) -> bool {
-        if let Some(solutions) = &self.solutions {
-            for sel_sol in solutions {
-                if sel_sol.contains_str(&result.solution) {
                     return true;
                 }
                 if sel_sol.contains_i64(index as i64) {
