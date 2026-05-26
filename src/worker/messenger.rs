@@ -1,4 +1,8 @@
 use std::{io::{Read, Write}, net::{TcpListener, TcpStream}};
+use std::time::Duration;
+use std::process;
+
+use regex::Error;
 
 use crate::worker::message::{MessageError, ParsedMessage};
 
@@ -34,12 +38,12 @@ impl Messenger {
         Ok(Messenger { stream, remote_addr: None })
     }
 
-    pub fn send_raw(&mut self, data: &[u8]) -> Result<(), std::io::Error> {
-        self.stream.write(data)?;
-        Ok(())
+    pub fn send_raw(&mut self, data: &[u8]) -> Result<usize, std::io::Error> {
+        let n = self.stream.write(data)?;
+        Ok(n)
     }
 
-    pub fn send<T: message::Message>(&mut self, msg: &T) -> Result<(), std::io::Error> {
+    pub fn send<T: message::Message>(&mut self, msg: &T) -> Result<usize, std::io::Error> {
         let bin = msg.serialize();
         self.send_raw(&bin)
     }
@@ -47,10 +51,20 @@ impl Messenger {
     pub fn recv(&mut self) -> Result<ParsedMessage, MessageError> {
         let mut buf = [0; 1024];
         let n = self.stream.read(&mut buf)
-            .map_err(|e| MessageError::IOError { source: e })?;
-        println!("Received {} bytes", n);
+            .map_err(|e| {
+                if e.kind() == std::io::ErrorKind::WouldBlock {
+                    MessageError::ReadTimeout
+                } else {
+                    MessageError::IOError { source: e }
+                }
+            })?;
+
         let result = message::parse_message(&buf[..n])?;
         Ok(result)
+    }
+
+    pub fn set_recv_timeout(&self, timeout: Option<Duration>) {
+        let _ = self.stream.set_read_timeout(timeout);
     }
 
     pub fn ping(&mut self) -> Result<(), MessageError> {
@@ -82,17 +96,26 @@ impl Messenger {
         }
     }
 
-    pub fn run(&mut self, problem_id: i64, solution_id: usize) -> Result<result::RunResult, result::RunError> {
+    pub fn run(&mut self, problem_id: i64, solution_id: usize, timeout: Option<Duration>) -> Result<result::RunResult, result::RunError> {
         let msg = message::MessageRun::request(problem_id as i32, solution_id as i32);
-        println!("Sending run message: problem_id={}, solution_id={}", problem_id, solution_id);
         self.send(&msg)
             .map_err(|e| result::RunError::NetworkError { source: e })?;
+
+        let extra_timeout = match timeout {
+            Some(t) => Some(t + Duration::from_millis(100)),
+            None => None,
+        };
+        self.set_recv_timeout(extra_timeout);
 
         let reply = self.recv()
             .map_err(|e| {
                 match e {
-                    MessageError::IOError { source } => result::RunError::NetworkError { source },
-                    e => result::RunError::ProtocolMessageError { source: e },
+                    MessageError::ReadTimeout =>
+                        result::RunError::Timeout,
+                    MessageError::IOError { source } => 
+                        result::RunError::NetworkError { source },
+                    e =>
+                        result::RunError::ProtocolMessageError { source: e },
                 }
             })?;
         match reply {

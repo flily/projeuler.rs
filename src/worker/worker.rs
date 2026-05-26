@@ -77,11 +77,7 @@ impl Worker {
 
         result.got = Some(got);
         result.cost = cost;
-        result.result = if result.check(got) {
-            FinalResult::Correct
-        } else {
-            FinalResult::Wrong
-        };
+        result.check();
 
         Ok(result)
     }

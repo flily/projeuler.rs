@@ -1,5 +1,6 @@
+use std::error;
 use std::io::{self, BufRead, Read, Write};
-use std::time;
+use std::time::{self, Duration};
 use std::net::{TcpListener, TcpStream};
 
 use clap::{Parser, Subcommand};
@@ -144,11 +145,7 @@ async fn run_solution(worker: &Worker, problem_id: i64, index: usize, timeout_ms
         Ok(got) => {
             run_result.got = Some(got);
             if check_answer {
-                run_result.result = if run_result.check(got) {
-                    FinalResult::Correct
-                } else {
-                    FinalResult::Wrong
-                };
+                run_result.check();
             } else {
                 run_result.result = FinalResult::Unknown;   // we got a result but not checked
             }
@@ -242,12 +239,12 @@ fn print_solution_result(run_result: &RunResult, timeout_ms: u64, is_best: bool)
     );
 }
 
-fn make_problem_result(solutions: &[RunResult]) -> (FinalResult, i32) {
+fn make_problem_result(result_list: &[RunResult]) -> (FinalResult, i32) {
     let mut result = FinalResult::Timeout;
     let mut best_index = -1;
     let mut best_time = time::Duration::from_secs(0);
 
-    for (i, sln) in solutions.iter().enumerate() {
+    for (i, sln) in result_list.iter().enumerate() {
         match sln.result {
             FinalResult::Timeout => {}
             FinalResult::Correct => {
@@ -258,6 +255,7 @@ fn make_problem_result(solutions: &[RunResult]) -> (FinalResult, i32) {
                 }
             }
             FinalResult::None => {} // skip None result, not run yet
+            FinalResult::Unknown => {} // skip Unknown result, not checked yet
             _ => {
                 result = sln.result.clone();
                 break;
@@ -300,12 +298,12 @@ fn print_one_solution_problem(problem: &common::Problem, run_result: &RunResult,
 
 fn print_result(
     problem: &common::Problem,
-    solutions: &[RunResult],
+    results: &[RunResult],
     timeout_ms: u64,
     cost: time::Duration,
 ) -> (i32, i32) {
-    if solutions.len() == 1 {
-        let sln = &solutions[0];
+    if results.len() == 1 {
+        let sln = &results[0];
         print_one_solution_problem(problem, sln, timeout_ms);
 
         let c = match sln.result {
@@ -316,18 +314,18 @@ fn print_result(
         return c;
     }
 
-    let (problem_result, best_index) = make_problem_result(solutions);
+    let (problem_result, best_index) = make_problem_result(results);
     print_problem_result(problem, problem_result, timeout_ms, cost);
 
     let mut correct_count = 0;
-    for (i, sln) in solutions.iter().enumerate() {
+    for (i, sln) in results.iter().enumerate() {
         if let FinalResult::Correct = sln.result {
             correct_count += 1;
         }
         print_solution_result(sln, timeout_ms, best_index == (i as i32));
     }
 
-    (correct_count, solutions.len() as i32)
+    (correct_count, results.len() as i32)
 }
 
 enum WorkMode {
@@ -381,13 +379,14 @@ impl RunContext {
     pub fn reconnect(&mut self) -> Result<(), std::io::Error> {
         if let WorkMode::Remote { child,  port, progname, .. } = &mut self.mode {
             child.kill()?;
-            let child = Self::launch_worker(progname, *port)?;
-            std::thread::sleep(time::Duration::from_millis(100));
-            let client = messenger::Messenger::connect(*port)?;
+
+            let child = Self::launch_worker(progname, *port + 1)?;
+            std::thread::sleep(time::Duration::from_millis(50));
+            let client = messenger::Messenger::connect(*port + 1)?;
             self.mode = WorkMode::Remote {
                 client,
                 child,
-                port: *port,
+                port: *port + 1,
                 progname: progname.clone(),
             };
         }
@@ -400,8 +399,32 @@ impl RunContext {
                 rt.block_on(run_solution(worker, problem_id, solution_id, timeout_ms, false))
             }
             WorkMode::Remote { client, .. } => {
-                match client.run(problem_id, solution_id) {
-                    Ok(run_result) => run_result,
+                let timeout = if timeout_ms > 0 {
+                    Some(Duration::from_millis(timeout_ms))
+                } else {
+                    None
+                };
+                match client.run(problem_id, solution_id, timeout) {
+                    Ok(run_result) => {
+                        let mut result = worker.make_result(problem_id, solution_id).unwrap();
+                        result.got = Some(run_result.got.unwrap());
+                        result.cost = run_result.cost;
+                        result.result = FinalResult::Unknown;
+                        result
+                    }
+                    Err(RunError::Timeout) => {
+                        let _ = self.reconnect();
+
+                        RunResult {
+                            solution: worker.get_solution(problem_id, solution_id).unwrap().name.to_string(),
+                            entry: worker.get_solution(problem_id, solution_id).unwrap().entry,
+                            answer: Some(worker.get_problem(problem_id).unwrap().answer),
+                            got: None,
+                            result: FinalResult::Timeout,
+                            cost: Duration::from_millis(timeout_ms),
+                            extra_timeout_ms: worker.get_problem(problem_id).unwrap().extra_time_ms,
+                        }
+                    }
                     Err(e) => {
                         println!("Run error: {:?}", e);
                         RunResult::basic(0, time::Duration::from_secs(0))
@@ -419,8 +442,8 @@ impl RunContext {
                 rt.shutdown_background();
             }
             WorkMode::Remote { mut child, client, .. } => {
-                child.kill();
-                client.close();
+                let _ = child.kill();
+                let _ = client.close();
             }
          }
     }
@@ -473,7 +496,10 @@ fn do_run(ctx: &mut RunContext, pids: Vec<ProblemSelection>, timeout_ms: u64, ch
             }
 
             let sln_timeout_ms = timeout_ms + problem.extra_time_ms;
-            let run_result = ctx.run(&worker, problem.id, index, sln_timeout_ms);
+            let mut run_result = ctx.run(&worker, problem.id, index, sln_timeout_ms);
+            if check_answers {
+                run_result.check();
+            }
             
             results.push(run_result);
         }
@@ -720,7 +746,6 @@ fn do_worker(port: u16, pid: i64, solution_id: usize) {
         .expect("failed to accept connection");
 
     loop {
-        println!("Waiting for message...");
         let r = conn.recv();
         match r {
             Ok(ParsedMessage::Ping(msg)) => {
@@ -730,9 +755,7 @@ fn do_worker(port: u16, pid: i64, solution_id: usize) {
             Ok(ParsedMessage::Run(msg)) => {
                 let pid = msg.problem_id as i64;
                 let sid = msg.solutions_id as usize;
-                println!("run problem {}, solution {}", pid, sid);
                 let result = worker.run(pid, sid);
-                println!("run result: {:?}", result);
                 let response = match result {
                     Ok(run_result) => {
                         msg.reply(run_result.cost, run_result.answer.unwrap(), message::MessageResultFlags::NONE)
@@ -768,7 +791,7 @@ fn do_client(port: u16, pid: i64, sid: i64) {
 
     m.ping().expect("ping failed");
 
-    let result = m.run(pid, sid as usize);
+    let result = m.run(pid, sid as usize, None);
     match result {
         Ok(run_result) => {
             println!("Run result: {:?}", run_result);
@@ -814,6 +837,7 @@ fn main() {
             }
 
             let mut ctx = if local_mode {
+                println!("running in local mode, solutions will run in the same process...");
                 RunContext::local()
             } else {
                 println!("starting worker process on port {}...", port);

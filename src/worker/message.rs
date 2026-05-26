@@ -53,6 +53,7 @@ pub enum MessageError {
         got: u64,
         exp: u64,
     },
+    ReadTimeout,
 }
 
 impl fmt::Display for MessageError {
@@ -74,6 +75,7 @@ impl fmt::Display for MessageError {
                 got,
                 exp,
             } => write!(f, "Wrong ping sequence: expected {}, got {}", exp, got),
+            MessageError::ReadTimeout => write!(f, "Read timeout"),
         }
     }
 }

@@ -64,16 +64,39 @@ impl RunResult {
         Self {
             solution: String::new(),
             entry: || 0,
-            answer: Some(answer),
-            got: None,
+            answer: None,
+            got: Some(answer),
             result: FinalResult::Unknown,
             cost,
             extra_timeout_ms: 0,
         }
     }
 
-    pub fn check(&self, result: i64) -> bool {
-        result == self.answer.unwrap()
+    pub fn timeout(cost: time::Duration) -> Self {
+        Self {
+            solution: String::new(),
+            entry: || 0,
+            answer: None,
+            got: None,
+            result: FinalResult::Timeout,
+            cost,
+            extra_timeout_ms: 0,
+        }
+    }
+
+    pub fn check(&mut self) -> FinalResult {
+        self.result = match (self.got, self.answer) {
+            (Some(got), Some(ans)) => {
+                if got == ans {
+                    FinalResult::Correct
+                } else {
+                    FinalResult::Wrong
+                }
+            },
+            _ => self.result.clone(),
+        };
+
+        self.result.clone()
     }
 }
 
@@ -91,5 +114,6 @@ pub enum RunError {
     },
     ProtocolMessageError {
         source: message::MessageError,
-    }
+    },
+    Timeout,
 }
