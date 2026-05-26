@@ -11,6 +11,7 @@ use tokio::{time::timeout, runtime};
 use crate::common::{Problem, SolutionInfo};
 use crate::common::launcher;
 use crate::common::launcher::ProblemSelection;
+use crate::worker::message::MessageType::Run;
 use crate::worker::message::{self, Message, MessageResult, ParsedMessage};
 use crate::worker::{FinalResult, RunError, RunResult, Worker, messenger};
 use management::ProblemManagement;
@@ -414,19 +415,19 @@ impl RunContext {
                     }
                     Err(RunError::Timeout) => {
                         let _ = self.reconnect();
+                        let mut result = worker.make_result(problem_id, solution_id).unwrap();
+                        result.result = FinalResult::Timeout;
+                        result.cost = Duration::from_millis(timeout_ms);
+                        result
+                    }
+                    Err(RunError::ProtocolMessageError { source }) => {
+                        let mut result = worker.make_result(problem_id, solution_id).unwrap();
+                        result.result = FinalResult::Crash;
+                        result
 
-                        RunResult {
-                            solution: worker.get_solution(problem_id, solution_id).unwrap().name.to_string(),
-                            entry: worker.get_solution(problem_id, solution_id).unwrap().entry,
-                            answer: Some(worker.get_problem(problem_id).unwrap().answer),
-                            got: None,
-                            result: FinalResult::Timeout,
-                            cost: Duration::from_millis(timeout_ms),
-                            extra_timeout_ms: worker.get_problem(problem_id).unwrap().extra_time_ms,
-                        }
                     }
                     Err(e) => {
-                        println!("Run error: {:?}", e);
+                        println!("Got unknown run error: {:?}", e);
                         RunResult::basic(0, time::Duration::from_secs(0))
                     }
                 }
@@ -750,7 +751,7 @@ fn do_worker(port: u16, pid: i64, solution_id: usize) {
         match r {
             Ok(ParsedMessage::Ping(msg)) => {
                 let pong = msg.to_pong();
-                conn.send(&pong).expect("send pong failed")
+                conn.send(&pong).expect("send pong failed");
             }
             Ok(ParsedMessage::Run(msg)) => {
                 let pid = msg.problem_id as i64;
