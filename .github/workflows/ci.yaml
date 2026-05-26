@@ -13,11 +13,15 @@ jobs:
 
     steps:
     - uses: actions/checkout@v6
+    - name: Check runner info
+      run: |
+        lscpu
+        free
     - name: Code check
-      run: cargo clippy --all-targets --all-features -- -D warnings
+      run: cargo clippy --release --all-targets --all-features -- -D warnings
     - name: Build
       run: cargo build --release
     - name: Run tests
-      run: cargo test
+      run: cargo test --release 
     - name: Run result
       run: cargo run --release run --check --color
