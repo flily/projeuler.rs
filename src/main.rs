@@ -104,7 +104,6 @@ struct Args {
 }
 
 async fn run_solution(solution: &SolutionItem, timeout_ms: u64, check_answer: bool) -> RunResult {
-    let mut run_result = solution.run_result();
     let entry = solution.entry;
 
     let t1 = time::Instant::now();
@@ -128,26 +127,19 @@ async fn run_solution(solution: &SolutionItem, timeout_ms: u64, check_answer: bo
             Err(_) => Err(true),
         }
     };
-    run_result.cost = t1.elapsed();
+    let cost = t1.elapsed();
 
     match response {
         Ok(got) => {
-            run_result.got = Some(got);
-            if check_answer {
-                run_result.check();
-            } else {
-                run_result.result = FinalResult::Unknown;   // we got a result but not checked
-            }
+            solution.finish_result(got, cost).with_check(check_answer)
         }
         Err(true) => {
-            run_result.result = FinalResult::Timeout;
+            solution.timeout_result(cost)
         }
         Err(false) => {
-            run_result.result = FinalResult::Crash;
+            solution.crash_result(cost)
         }
     }
-
-    run_result
 }
 
 fn cost_time_color(cost: time::Duration, timeout_ms: u64) -> colored::Color {
@@ -201,8 +193,7 @@ fn print_problem_result(problem: &common::Problem, problem_result: FinalResult, 
     );
 }
 
-fn print_solution_result(pid: &String, title: &String, run_result: &RunResult, timeout_ms: u64, is_best: bool) {
-    
+fn print_solution_result(pid: &str, title: &str, run_result: &RunResult, timeout_ms: u64, is_best: bool) {
     let result_colour = run_result.result.color();
     let pid_text = pid.color(result_colour).bold();
     let title_text = if is_best {
@@ -359,7 +350,7 @@ impl RunContext {
         if let WorkMode::Remote { child, port_base, port, progname, .. } = &mut self.mode {
             child.kill()?;
 
-            let next_port = if *port + 1 > u16::MAX || *port + 1 - *port_base > 1000 {
+            let next_port = if *port >= u16::MAX - 1 || *port + 1 - *port_base > 1000 {
                 *port_base
             } else {
                 *port + 1
@@ -390,8 +381,8 @@ impl RunContext {
                     None
                 };
                 match client.run_solution(solution, timeout) {
-                    Ok(run_result) => {
-                        solution.finish_result(run_result.got.unwrap(), run_result.cost)
+                    Ok((got, cost)) => {
+                        solution.finish_result(got, cost)
                     }
                     Err(RunError::Timeout) => {
                         let _ = self.reconnect();
@@ -703,8 +694,12 @@ fn worker_test(worker: &Worker, pid: i64, solution_id: usize) {
 }
 
 fn do_worker(port: u16, pid: i64, solution_id: usize) {
-    let listener = messenger::MessengerListener::listen(port)
-        .expect(&format!("failed to bind port {}", port));
+    let listener = messenger::MessengerListener::listen(port);
+    if listener.is_err() {
+        println!("failed to start worker listener on port {}: {:?}", port, listener.err().unwrap());
+        return;
+    }
+    let listener = listener.unwrap();
 
     let worker = Worker::on_static(problems::all_problems());
 
@@ -729,7 +724,9 @@ fn do_worker(port: u16, pid: i64, solution_id: usize) {
                 let result = worker.run(pid, sid);
                 let response = match result {
                     Ok(run_result) => {
-                        msg.reply(run_result.cost, run_result.answer.unwrap(), MessageResultFlags::NONE)
+                        msg.reply(run_result.cost,
+                                  run_result.answer.unwrap(), 
+                                  MessageResultFlags::empty())
                     }
                     Err(RunError::ProblemNotFound { problem_id }) => {
                         MessageResult::problem_not_found(problem_id as i32)
@@ -757,8 +754,12 @@ fn do_worker(port: u16, pid: i64, solution_id: usize) {
 }
 
 fn do_client(port: u16, pid: i64, sid: i64) {
-    let mut m = messenger::Messenger::connect(port)
-        .expect(&format!("failed to connect to {}", port));
+    let m = messenger::Messenger::connect(port);
+    if m.is_err() {
+        println!("failed to connect to {}: {:?}", port, m.err().unwrap());
+        return;
+    }
+    let mut m = m.unwrap();
 
     m.ping().expect("ping failed");
 
@@ -766,6 +767,12 @@ fn do_client(port: u16, pid: i64, sid: i64) {
     match result {
         Ok(run_result) => {
             println!("Run result: {:?}", run_result);
+        }
+        Err(RunError::ProtocolMessageError { source }) => {
+            println!("Protocol message error: {:?}", source);
+        }
+        Err(RunError::NetworkError { source }) => {
+            println!("Network error: {:?}", source);
         }
         Err(e) => {
             println!("Run error: {:?}", e);

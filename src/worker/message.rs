@@ -88,7 +88,6 @@ impl fmt::Display for MessageError {
 #[derive(Clone)]
 pub struct MessageHeader {
     pub message_type: MessageType,
-    pub total_length: u16,
 }
 
 // +------------------+-----------+
@@ -133,7 +132,6 @@ impl Message for MessagePing {
         Self {
             header: MessageHeader {
                 message_type: MessageType::Ping,
-                total_length: 16,
             },
             seq,
         }
@@ -145,7 +143,6 @@ impl MessagePing {
         MessagePing {
             header: MessageHeader {
                 message_type: MessageType::Ping,
-                total_length: 16,
             },
             seq,
         }
@@ -160,7 +157,6 @@ impl MessagePing {
         MessagePing {
             header: MessageHeader {
                 message_type: MessageType::Pong,
-                total_length: 16,
             },
             seq: self.seq,
         }
@@ -213,7 +209,6 @@ impl Message for MessageRun {
         Self {
             header: MessageHeader {
                 message_type: MessageType::Run,
-                total_length: 16,
             },
             problem_id,
             solutions_id,
@@ -226,7 +221,6 @@ impl MessageRun {
         MessageRun {
             header: MessageHeader {
                 message_type: MessageType::Run,
-                total_length: 16,
             },
             problem_id,
             solutions_id,
@@ -237,7 +231,6 @@ impl MessageRun {
         MessageResult {
             header: MessageHeader {
                 message_type: MessageType::Result,
-                total_length: 40,
             },
             time_cost,
             result,
@@ -252,30 +245,23 @@ impl MessageRun {
 pub struct MessageResultFlags(u64);
 
 impl MessageResultFlags {
-    pub const NONE: Self = MessageResultFlags(0);
-    pub const NOT_FOUND: Self = MessageResultFlags(1 << 0);
-    pub const CRASHED: Self = MessageResultFlags(1 << 1);
+    pub const NONE: u64 = 0;
+    pub const NOT_FOUND: u64 = 1 << 0;
 
-    pub fn empty(&self) -> bool {
+    pub fn empty() -> Self {
+        Self(Self::NONE)
+    }
+
+    pub fn is_empty(&self) -> bool {
         self.0 == 0
     }
 
     pub fn is_not_found(&self) -> bool {
-        self.0 & Self::NOT_FOUND.0 != 0
+        self.0 & Self::NOT_FOUND != 0
     }
 
-    pub fn not_found(&mut self) -> &mut Self {
-        self.0 |= Self::NOT_FOUND.0;
-        self
-    }
-
-    pub fn is_crashed(&self) -> bool {
-        self.0 & Self::CRASHED.0 != 0
-    }
-
-    pub fn crashed(&mut self) -> &mut Self {
-        self.0 |= Self::CRASHED.0;
-        self
+    pub fn not_found(&self) -> Self {
+        Self(self.0 | Self::NOT_FOUND)
     }
 }
 
@@ -332,7 +318,6 @@ impl Message for MessageResult {
         Self {
             header: MessageHeader {
                 message_type: MessageType::Result,
-                total_length: 40,
             },
             time_cost,
             result,
@@ -348,11 +333,10 @@ impl MessageResult {
         MessageResult {
             header: MessageHeader {
                 message_type: MessageType::Result,
-                total_length: 40,
             },
             time_cost: time::Duration::from_secs(0),
             result: 0,
-            flags: MessageResultFlags::NOT_FOUND,
+            flags: MessageResultFlags::empty().not_found(),
             problem_id: pid,
             solutions_id: -1,
         }
@@ -362,11 +346,10 @@ impl MessageResult {
         MessageResult {
             header: MessageHeader {
                 message_type: MessageType::Result,
-                total_length: 40,
             },
             time_cost: time::Duration::from_secs(0),
             result: 0,
-            flags: MessageResultFlags::NOT_FOUND,
+            flags: MessageResultFlags::empty().not_found(),
             problem_id: pid,
             solutions_id: sid,
         }
@@ -409,7 +392,6 @@ mod tests {
         let ping = MessagePing {
             header: MessageHeader {
                 message_type: MessageType::Ping,
-                total_length: 16,
             },
             seq: 42,
         };
@@ -418,7 +400,6 @@ mod tests {
 
         assert_eq!(ping.seq, deserialized_ping.seq);
         assert_eq!(ping.header.message_type as u16, deserialized_ping.header.message_type as u16);
-        assert_eq!(ping.header.total_length, deserialized_ping.header.total_length);
 
         assert_eq!(ping.message_type(), MessageType::Ping);
         assert_eq!(ping.total_length(), 16);
@@ -429,7 +410,6 @@ mod tests {
         let run = MessageRun {
             header: MessageHeader {
                 message_type: MessageType::Run,
-                total_length: 16,
             },
             problem_id: 123,
             solutions_id: 456,
@@ -440,7 +420,6 @@ mod tests {
         assert_eq!(run.problem_id, deserialized_run.problem_id);
         assert_eq!(run.solutions_id, deserialized_run.solutions_id);
         assert_eq!(run.header.message_type as u16, deserialized_run.header.message_type as u16);
-        assert_eq!(run.header.total_length, deserialized_run.header.total_length);
 
         assert_eq!(run.message_type(), MessageType::Run);
         assert_eq!(run.total_length(), 16);

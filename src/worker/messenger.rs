@@ -94,11 +94,11 @@ impl Messenger {
         }
     }
 
-    pub fn run_solution(&mut self, solution: &SolutionItem, timeout: Option<Duration>) -> Result<result::RunResult, result::RunError> {
+    pub fn run_solution(&mut self, solution: &SolutionItem, timeout: Option<Duration>) -> Result<(i64, Duration), result::RunError> {
         self.run(solution.id, solution.index as usize, timeout)
     }
 
-    pub fn run(&mut self, problem_id: i64, solution_id: usize, timeout: Option<Duration>) -> Result<result::RunResult, result::RunError> {
+    pub fn run(&mut self, problem_id: i64, solution_id: usize, timeout: Option<Duration>) -> Result<(i64, Duration), result::RunError> {
         let msg = message::MessageRun::request(problem_id as i32, solution_id as i32);
         self.send(&msg)
             .map_err(|e| result::RunError::NetworkError { source: e })?;
@@ -119,8 +119,8 @@ impl Messenger {
             })?;
         match reply {
             ParsedMessage::Result(result) => {
-                if result.flags.empty() {
-                    Ok(result::RunResult::basic(result.result, result.time_cost))
+                if result.flags.is_empty() {
+                    Ok((result.result, result.time_cost))
                 } else {
                     if result.flags.is_not_found() {
                         if result.solutions_id < 0 {

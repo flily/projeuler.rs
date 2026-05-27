@@ -1,8 +1,8 @@
 use std::time;
 
-use crate::common::{Problem, SolutionInfo};
+use crate::common::{Problem};
 
-use super::{FinalResult, RunResult, RunError};
+use super::{RunResult, RunError};
 
 
 pub struct Worker {
@@ -26,41 +26,6 @@ impl Worker {
         }
     }
 
-    pub fn get_solution(&self, problem_id: i64, solution_id: usize) -> Result<SolutionInfo, RunError> {
-        let problem = self.problems.iter().find(|p| p.id == problem_id);
-        if problem.is_none() {
-            return Err(RunError::ProblemNotFound { problem_id });
-        }
-
-        let problem = problem.unwrap();
-        match problem.get_solution(solution_id) {
-            Some(sln) => Ok(sln),
-            None => Err(RunError::SolutionNotFound { problem_id, solution_id }),
-        }
-    }
-
-    pub fn make_result(&self, problem_id: i64, solution_id: usize) -> Result<RunResult, RunError> {
-        let problem = self.get_problem(problem_id)?;
-        let result = problem.make_run_result_for(solution_id);
-        if result.is_none() {
-            return Err(RunError::SolutionNotFound { problem_id, solution_id });
-        }
-
-        let result = problem.make_run_result_for(solution_id);
-        if result.is_none() {
-            return Err(RunError::SolutionNotFound { problem_id, solution_id });
-        }
-
-        Ok(RunResult {
-            solution: problem.solutions[solution_id].name.to_string(),
-            answer: Some(problem.answer),
-            got: None,
-            result: FinalResult::None,
-            cost: time::Duration::from_secs(0),
-            extra_timeout_ms: problem.extra_time_ms,
-        })
-    }
-
     pub fn run(&self, pid: i64, sid: usize) -> Result<RunResult, RunError> {
         let problem = self.get_problem(pid)?;
         let solution = problem.get_solution(sid);
@@ -69,13 +34,11 @@ impl Worker {
         }
 
         let solution = solution.unwrap();
-        let mut result = problem.make_run_result_for(sid).unwrap();
         let start = time::Instant::now();
         let got = (solution.entry)();
         let cost = start.elapsed();
 
-        result.got = Some(got);
-        result.cost = cost;
+        let mut result = solution.finish_result(got, cost);
         result.check();
 
         Ok(result)

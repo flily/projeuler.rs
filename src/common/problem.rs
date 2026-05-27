@@ -3,7 +3,7 @@ use std::time;
 use std::panic::Location;
 use std::path::Path;
 
-use crate::worker::{FinalResult, RunResult};
+use crate::worker::RunResult;
 
 pub type Solution = fn() -> i64;
 
@@ -35,30 +35,26 @@ impl Problem {
         }
     }
 
-    pub fn get_solution(&self, index: usize) -> Option<SolutionInfo> {
+    pub fn get_solution(&self, index: usize) -> Option<SolutionItem> {
         if index >= self.solutions.len() {
             None
         } else {
-            Some(self.solutions[index].clone())
-        }
-    }
-
-    pub fn make_run_result_for(&self, index: usize) -> Option<RunResult> {
-        self.get_solution(index).map(|sln| RunResult {
-                solution: sln.name.to_string(),
+            let sln = &self.solutions[index];
+            Some(SolutionItem {
+                id: self.id,
+                index: index as i64,
                 answer: Some(self.answer),
-                got: None,
-                result: FinalResult::None,
-                cost: time::Duration::from_secs(0),
-                extra_timeout_ms: self.extra_time_ms,
-        })
+                extra_time_ms: self.extra_time_ms,
+                solution_name: sln.name.to_string(),
+                entry: sln.entry,
+            })
+        }
     }
 
     pub fn make_solution_items(&self) -> Vec<SolutionItem> {
         self.solutions.iter().enumerate().map(|(index, sln)| SolutionItem {
             id: self.id,
             index: index as i64,
-            problem_title: self.title.to_string(),
             answer: Some(self.answer),
             extra_time_ms: self.extra_time_ms,
             solution_name: sln.name.to_string(),
@@ -70,7 +66,6 @@ impl Problem {
 pub struct SolutionItem {
     pub id: i64,
     pub index: i64,
-    pub problem_title: String,
     pub answer: Option<i64>,
     pub extra_time_ms: u64,
     pub solution_name: String,
@@ -79,47 +74,19 @@ pub struct SolutionItem {
 
 impl SolutionItem {
     pub fn run_result(&self) -> RunResult {
-        RunResult {
-            solution: self.solution_name.to_string(),
-            answer: self.answer,
-            got: None,
-            result: FinalResult::None,
-            cost: time::Duration::from_secs(0),
-            extra_timeout_ms: self.extra_time_ms,
-        }
+        RunResult::init(self.solution_name.to_string(), self.answer, self.extra_time_ms)
     }
 
     pub fn finish_result(&self, got: i64, cost: time::Duration) -> RunResult {
-        RunResult {
-            solution: self.solution_name.to_string(),
-            answer: self.answer,
-            got: Some(got),
-            result: FinalResult::Unknown,
-            cost,
-            extra_timeout_ms: self.extra_time_ms,
-        }
+        self.run_result().finish(got, cost)
     }
 
     pub fn timeout_result(&self, cost: time::Duration) -> RunResult {
-        RunResult {
-            solution: self.solution_name.to_string(),
-            answer: self.answer,
-            got: None,
-            result: FinalResult::Timeout,
-            cost,
-            extra_timeout_ms: self.extra_time_ms,
-        }
+        self.run_result().timeout(cost)
     }
 
     pub fn crash_result(&self, cost: time::Duration) -> RunResult {
-        RunResult {
-            solution: self.solution_name.to_string(),
-            answer: self.answer,
-            got: None,
-            result: FinalResult::Crash,
-            cost,
-            extra_timeout_ms: self.extra_time_ms,
-        }
+        self.run_result().crash(cost)
     }
 }
 

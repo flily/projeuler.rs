@@ -17,22 +17,22 @@ pub enum FinalResult {
 impl FinalResult {
     pub fn to_string(&self) -> &str {
         match self {
-            FinalResult::None => "-",
-            FinalResult::Unknown => "?",
-            FinalResult::Correct => "correct",
-            FinalResult::Wrong => "wrong",
-            FinalResult::Timeout => "timeout",
-            FinalResult::Crash => "crash",
+            Self::None => "-",
+            Self::Unknown => "?",
+            Self::Correct => "correct",
+            Self::Wrong => "wrong",
+            Self::Timeout => "timeout",
+            Self::Crash => "crash",
         }
     }
 
     pub fn color(&self) -> colored::Color {
         match self {
-            FinalResult::Correct => Color::Green,
-            FinalResult::Unknown => Color::Yellow,
-            FinalResult::Wrong => Color::Red,
-            FinalResult::Timeout => Color::Yellow,
-            FinalResult::Crash => Color::Red,
+            Self::Correct => Color::Green,
+            Self::Unknown => Color::Yellow,
+            Self::Wrong => Color::Red,
+            Self::Timeout => Color::Yellow,
+            Self::Crash => Color::Red,
             _ => Color::White,
         }
     }
@@ -57,26 +57,41 @@ pub struct RunResult {
 }
 
 impl RunResult {
-    pub fn basic(answer: i64, cost: time::Duration) -> Self {
+    pub fn init(solution: String, answer: Option<i64>, extra_timeout_ms: u64) -> Self {
         Self {
-            solution: String::new(),
-            answer: None,
-            got: Some(answer),
-            result: FinalResult::Unknown,
-            cost,
-            extra_timeout_ms: 0,
+            solution,
+            answer,
+            got: None,
+            result: FinalResult::None,
+            cost: time::Duration::from_secs(0),
+            extra_timeout_ms,
         }
     }
 
-    pub fn timeout(cost: time::Duration) -> Self {
-        Self {
-            solution: String::new(),
-            answer: None,
-            got: None,
-            result: FinalResult::Timeout,
-            cost,
-            extra_timeout_ms: 0,
+    pub fn finish(mut self, got: i64, cost: time::Duration) -> Self {
+        self.got = Some(got);
+        self.cost = cost;
+        self.result = FinalResult::Unknown;
+        self
+    }
+
+    pub fn timeout(mut self, cost: time::Duration) -> Self {
+        self.result = FinalResult::Timeout;
+        self.cost = cost;
+        self
+    }
+
+    pub fn crash(mut self, cost: time::Duration) -> Self {
+        self.result = FinalResult::Crash;
+        self.cost = cost;
+        self
+    }
+
+    pub fn with_check(mut self, check: bool) -> Self {
+        if check {
+            self.check();
         }
+        self
     }
 
     pub fn check(&mut self) -> FinalResult {
