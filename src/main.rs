@@ -176,20 +176,25 @@ fn color_cost_time(cost: time::Duration, color: colored::Color, is_best: bool) -
     }
 }
 
-fn print_problem_result(problem: &common::Problem, problem_result: FinalResult, timeout_ms: u64, cost: time::Duration) {
+fn print_problem_result(problem: &common::Problem, problem_result: FinalResult,
+    timeout_ms: u64, problem_cost: time::Duration, solution_cost: time::Duration) {
     let total_timeout = (problem.solutions.len() as u64) * (timeout_ms + problem.extra_time_ms);
 
     let pid = problem_result.color_on(&problem.id.to_string());
     let title = problem_result.color_on(problem.title);
-    let cost_color = cost_time_color(cost, total_timeout);
-    let cost = color_cost_time(cost, cost_color, false);
+    let cost_color = cost_time_color(problem_cost, total_timeout);
+    let cost = color_cost_time(problem_cost, cost_color, false);
     let result = match problem_result {
         FinalResult::Crash => problem_result.to_string().on_color(problem_result.color()),
         _ => problem_result.color_string(),
     };
+    let overhead_cost = problem_cost - solution_cost;
+    let overhead_color = cost_time_color(overhead_cost, total_timeout);
+    let overhead = format!("+~> {:.3} ms", overhead_cost.as_nanos() as f64 / 1_000_000.0).on_color(overhead_color);
+
     println!(
-        "| {:>4} | {:<40} | {:^14} | {:^9} | {:>12} |",
-        pid, title, "", result, cost,
+        "| {:>4} | {:<40} | {:^14} | {:^9} | {:>12} | {}",
+        pid, title, "", result, cost, overhead,
     );
 }
 
@@ -261,13 +266,12 @@ fn print_result(
     problem: &common::Problem,
     results: &[RunResult],
     timeout_ms: u64,
-    cost: time::Duration,
+    problem_cost: time::Duration,
 ) -> (i32, i32) {
     let (problem_result, best_index) = make_problem_result(results);
 
     if results.len() == 1 {
         let sln = &results[0];
-        // print_one_solution_problem(problem, sln, timeout_ms);
         let pid = problem.id.to_string();
         let title = problem.title.to_string();
         print_solution_result(&pid, &title, sln, timeout_ms, best_index == 0);
@@ -280,7 +284,8 @@ fn print_result(
         return c;
     }
 
-    print_problem_result(problem, problem_result, timeout_ms, cost);
+    let solution_cost = results.iter().map(|r| r.cost).sum::<time::Duration>();
+    print_problem_result(problem, problem_result, timeout_ms, problem_cost, solution_cost);
 
     let raw_pid = "".to_string();
     let mut correct_count = 0;
@@ -325,7 +330,7 @@ impl RunContext {
 
     pub fn remote(progname: String, port: u16) -> Result<Self, std::io::Error> {
         let child = RunContext::launch_worker(&progname, port)?;
-        std::thread::sleep(time::Duration::from_millis(100));
+        std::thread::sleep(time::Duration::from_millis(10));
 
         let client = messenger::Messenger::connect(port)?;
         let port_base = port;
@@ -356,7 +361,7 @@ impl RunContext {
                 *port + 1
             };
             let child = Self::launch_worker(progname, next_port)?;
-            std::thread::sleep(time::Duration::from_millis(50));
+            std::thread::sleep(time::Duration::from_millis(10));
             let client = messenger::Messenger::connect(next_port)?;
             self.mode = WorkMode::Remote {
                 client,

@@ -8,7 +8,7 @@ pub static INFO: std::sync::LazyLock<Problem> = std::sync::LazyLock::new(|| Prob
     id: 75,
     title: "Singular Integer Right Triangles",
     answer: 161667,
-    extra_time_ms: 1000,
+    extra_time_ms: 0,
     solutions: vec![
         SolutionInfo {
             name: "naive",

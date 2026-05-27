@@ -103,7 +103,7 @@ impl Messenger {
         self.send(&msg)
             .map_err(|e| result::RunError::NetworkError { source: e })?;
 
-        let extra_timeout = timeout.map(|t| t + Duration::from_millis(50));
+        let extra_timeout = timeout.map(|t| t + Duration::from_millis(10));
         self.set_recv_timeout(extra_timeout);
 
         let reply = self.recv()
