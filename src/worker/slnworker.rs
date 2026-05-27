@@ -53,7 +53,6 @@ impl Worker {
 
         Ok(RunResult {
             solution: problem.solutions[solution_id].name.to_string(),
-            entry: problem.solutions[solution_id].entry,
             answer: Some(problem.answer),
             got: None,
             result: FinalResult::None,

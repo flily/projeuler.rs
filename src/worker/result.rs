@@ -51,7 +51,6 @@ impl FinalResult {
 #[derive(Debug, Clone)]
 pub struct RunResult {
     pub solution: String,
-    pub entry: Solution,
     pub answer: Option<i64>,
     pub got: Option<i64>,
     pub result: FinalResult,
@@ -63,7 +62,6 @@ impl RunResult {
     pub fn basic(answer: i64, cost: time::Duration) -> Self {
         Self {
             solution: String::new(),
-            entry: || 0,
             answer: None,
             got: Some(answer),
             result: FinalResult::Unknown,
@@ -75,7 +73,6 @@ impl RunResult {
     pub fn timeout(cost: time::Duration) -> Self {
         Self {
             solution: String::new(),
-            entry: || 0,
             answer: None,
             got: None,
             result: FinalResult::Timeout,

@@ -2,6 +2,7 @@ use std::io::{Read, Write};
 use std::net::{TcpListener, TcpStream};
 use std::time::Duration;
 
+use crate::common::SolutionItem;
 use crate::worker::message::{MessageError, ParsedMessage};
 
 use super::message;
@@ -91,6 +92,10 @@ impl Messenger {
                 exp: message::MessageType::Pong,
             }),
         }
+    }
+
+    pub fn run_solution(&mut self, solution: &SolutionItem, timeout: Option<Duration>) -> Result<result::RunResult, result::RunError> {
+        self.run(solution.id, solution.index as usize, timeout)
     }
 
     pub fn run(&mut self, problem_id: i64, solution_id: usize, timeout: Option<Duration>) -> Result<result::RunResult, result::RunError> {

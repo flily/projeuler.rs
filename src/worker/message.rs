@@ -213,7 +213,7 @@ impl Message for MessageRun {
         Self {
             header: MessageHeader {
                 message_type: MessageType::Run,
-                total_length: 32,
+                total_length: 16,
             },
             problem_id,
             solutions_id,
@@ -226,7 +226,7 @@ impl MessageRun {
         MessageRun {
             header: MessageHeader {
                 message_type: MessageType::Run,
-                total_length: 32,
+                total_length: 16,
             },
             problem_id,
             solutions_id,

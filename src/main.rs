@@ -5,7 +5,7 @@ use clap::{Parser, Subcommand};
 use colored::{Color, Colorize};
 use tokio::{time::timeout, runtime};
 
-use crate::common::{Problem, SolutionInfo};
+use crate::common::{Problem, SolutionInfo, SolutionItem};
 use crate::common::launcher::{ProblemSelection, parse_duration};
 use crate::worker::message::{MessageResult, ParsedMessage, MessageResultFlags};
 use crate::worker::{FinalResult, RunError, RunResult, Worker, messenger};
@@ -102,13 +102,13 @@ struct Args {
     command: Command,
 }
 
-async fn run_solution(worker: &Worker, problem_id: i64, index: usize, timeout_ms: u64, check_answer: bool) -> RunResult {
-    let solution = worker.get_solution(problem_id, index).unwrap();
-    let mut run_result = worker.make_result(problem_id, index).unwrap();
+async fn run_solution(worker: &Worker, solution: &SolutionItem, timeout_ms: u64, check_answer: bool) -> RunResult {
+    let mut run_result = solution.run_result();
+    let entry = solution.entry.clone();
 
     let t1 = time::Instant::now();
     let task = tokio::task::spawn_blocking(move || {
-        std::panic::catch_unwind(solution.entry)
+        std::panic::catch_unwind(entry)
     });
 
     // Ok(val)    => completed successfully
@@ -381,10 +381,10 @@ impl RunContext {
         Ok(())
     }
 
-    fn run(&mut self, worker: &Worker, problem_id: i64, solution_id: usize, timeout_ms: u64) -> RunResult {
+    fn run(&mut self, worker: &Worker, solution: &SolutionItem, timeout_ms: u64) -> RunResult {
         match &mut self.mode {
             WorkMode::Local { rt } => {
-                rt.block_on(run_solution(worker, problem_id, solution_id, timeout_ms, false))
+                rt.block_on(run_solution(worker, solution, timeout_ms, false))
             }
             WorkMode::Remote { client, .. } => {
                 let timeout = if timeout_ms > 0 {
@@ -392,30 +392,20 @@ impl RunContext {
                 } else {
                     None
                 };
-                match client.run(problem_id, solution_id, timeout) {
+                match client.run_solution(solution, timeout) {
                     Ok(run_result) => {
-                        let mut result = worker.make_result(problem_id, solution_id).unwrap();
-                        result.got = Some(run_result.got.unwrap());
-                        result.cost = run_result.cost;
-                        result.result = FinalResult::Unknown;
-                        result
+                        solution.finish_result(run_result.got.unwrap(), run_result.cost)
                     }
                     Err(RunError::Timeout) => {
                         let _ = self.reconnect();
-                        let mut result = worker.make_result(problem_id, solution_id).unwrap();
-                        result.result = FinalResult::Timeout;
-                        result.cost = Duration::from_millis(timeout_ms);
-                        result
+                        solution.timeout_result(Duration::from_millis(timeout_ms))
                     }
                     Err(RunError::ProtocolMessageError { .. }) => {
-                        let mut result = worker.make_result(problem_id, solution_id).unwrap();
-                        result.result = FinalResult::Crash;
-                        result
-
+                        solution.crash_result(Duration::from_millis(0))
                     }
                     Err(e) => {
                         println!("Got unknown run error: {:?}", e);
-                        RunResult::basic(0, time::Duration::from_secs(0))
+                        solution.crash_result(Duration::from_millis(0))
                     }
                 }
             }
@@ -468,21 +458,21 @@ fn do_run(ctx: &mut RunContext, pids: Vec<ProblemSelection>, timeout_ms: u64, ch
 
         let mut results = Vec::<RunResult>::new();
         let problem_time_start = time::Instant::now();
-        for (index, sln) in problem.solutions.iter().enumerate() {
+        for sln in problem.make_solution_items().iter() {
             let flag = pids
                 .iter()
-                .any(|sel| sel.check(problem) && sel.check_solution(index, sln));
+                .any(|sel| sel.check(problem) && sel.check_solution(sln));
             if !pids.is_empty() && !flag {
                 continue;
             }
 
-            if sln.name.starts_with("_") {
+            if sln.solution_name.starts_with("_") {
                 // skip solution with name start with "_", treat it as unfinished or not suggested to run.
                 continue;
             }
 
             let sln_timeout_ms = timeout_ms + problem.extra_time_ms;
-            let mut run_result = ctx.run(&worker, problem.id, index, sln_timeout_ms);
+            let mut run_result = ctx.run(&worker, sln, sln_timeout_ms);
             if check_answers {
                 run_result.check();
             }
