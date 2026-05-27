@@ -2,11 +2,9 @@ use std::time;
 
 use colored::{Color, Colorize};
 
-use crate::common::Solution;
-
 use super::message;
 
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, PartialEq, Eq)]
 pub enum FinalResult {
     None,       // Not run yet
     Unknown,    // Run but not checked

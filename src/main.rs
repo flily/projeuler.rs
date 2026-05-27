@@ -1,4 +1,5 @@
 use std::io::{self, BufRead, Write};
+use std::process::Stdio;
 use std::time::{self, Duration};
 
 use clap::{Parser, Subcommand};
@@ -102,9 +103,9 @@ struct Args {
     command: Command,
 }
 
-async fn run_solution(worker: &Worker, solution: &SolutionItem, timeout_ms: u64, check_answer: bool) -> RunResult {
+async fn run_solution(solution: &SolutionItem, timeout_ms: u64, check_answer: bool) -> RunResult {
     let mut run_result = solution.run_result();
-    let entry = solution.entry.clone();
+    let entry = solution.entry;
 
     let t1 = time::Instant::now();
     let task = tokio::task::spawn_blocking(move || {
@@ -190,31 +191,42 @@ fn print_problem_result(problem: &common::Problem, problem_result: FinalResult, 
     let title = problem_result.color_on(problem.title);
     let cost_color = cost_time_color(cost, total_timeout);
     let cost = color_cost_time(cost, cost_color, false);
-    let result = problem_result.color_string();
-
+    let result = match problem_result {
+        FinalResult::Crash => problem_result.to_string().on_color(problem_result.color()),
+        _ => problem_result.color_string(),
+    };
     println!(
         "| {:>4} | {:<40} | {:^14} | {:^9} | {:>12} |",
         pid, title, "", result, cost,
     );
 }
 
-fn print_solution_result(run_result: &RunResult, timeout_ms: u64, is_best: bool) {
-    let result = run_result.result.color_string();
-    let solution = if is_best {
-        format!("* {}", run_result.solution).on_color(run_result.result.color()).bold()
+fn print_solution_result(pid: &String, title: &String, run_result: &RunResult, timeout_ms: u64, is_best: bool) {
+    
+    let result_colour = run_result.result.color();
+    let pid_text = pid.color(result_colour).bold();
+    let title_text = if is_best {
+        format!("* {}", title).on_color(result_colour).bold()
     } else {
-        format!("+ {}", run_result.solution).color(run_result.result.color())
+        format!("+ {}", title).color(result_colour)
     };
-    let cost_color = cost_time_color(run_result.cost, timeout_ms);
+    let answer = if let Some(got) = run_result.got {
+        got.to_string().color(result_colour)
+    } else {
+        "NO RESULT".red()
+    };
+    let result = match run_result.result {
+        FinalResult::Crash => run_result.result.to_string().on_color(result_colour),
+        _ => run_result.result.color_string(),
+    };
+    
+    let total_timeout = timeout_ms + run_result.extra_timeout_ms;
+    let cost_color = cost_time_color(run_result.cost, total_timeout);
     let cost = match run_result.result {
         FinalResult::None => "-   ".yellow(),
         _ => color_cost_time(run_result.cost, cost_color, is_best),
     };
-    let answer = if let Some(got) = run_result.got {
-        got.to_string().color(run_result.result.color())
-    } else {
-        "NO RESULT".red()
-    };
+    
     let extra_timeout = if run_result.extra_timeout_ms > 0 {
         format!(" [+ {} ms]", run_result.extra_timeout_ms).yellow()
     } else {
@@ -223,7 +235,7 @@ fn print_solution_result(run_result: &RunResult, timeout_ms: u64, is_best: bool)
 
     println!(
         "| {:>4} | {:<40} | {:^14} | {:^9} | {:>12} |{}",
-        "", solution, answer, result, cost, extra_timeout,
+        pid_text, title_text, answer, result, cost, extra_timeout,
     );
 }
 
@@ -254,45 +266,20 @@ fn make_problem_result(result_list: &[RunResult]) -> (FinalResult, i32) {
     (result, best_index)
 }
 
-fn print_one_solution_problem(problem: &common::Problem, run_result: &RunResult, timeout_ms: u64) {
-    let total_timeout = timeout_ms + problem.extra_time_ms;
-    let pid = run_result.result.color_on(&problem.id.to_string().bold());
-    let title = problem.title.on_color(run_result.result.color());
-    let result = run_result.result.color_string();
-    let cost_color = cost_time_color(run_result.cost, total_timeout);
-    let cost = color_cost_time(run_result.cost, cost_color, matches!(run_result.result, FinalResult::Correct));
-    let answer = if let Some(got) = run_result.got {
-        got.to_string().color(run_result.result.color())
-    } else {
-        "NO RESULT".red()
-    };
-    let extra_timeout = if run_result.extra_timeout_ms > 0 {
-        format!(" [+ {} ms]", run_result.extra_timeout_ms).yellow()
-    } else {
-        "".into()
-    };
-
-    match run_result.result {
-         FinalResult::Correct => println!(
-            "| {:>4} | {:<40} | {:^14} | {:^9} | {:>12} |{}",
-            pid, title.bold(), answer, result, cost, extra_timeout,
-        ),
-        _ => println!(
-            "| {:>4} | {:<40} | {:^14} | {:^9} | {:>12} |{}",
-            pid, title, answer, result, cost, extra_timeout,
-        ),
-    }
-}
-
 fn print_result(
     problem: &common::Problem,
     results: &[RunResult],
     timeout_ms: u64,
     cost: time::Duration,
 ) -> (i32, i32) {
+    let (problem_result, best_index) = make_problem_result(results);
+
     if results.len() == 1 {
         let sln = &results[0];
-        print_one_solution_problem(problem, sln, timeout_ms);
+        // print_one_solution_problem(problem, sln, timeout_ms);
+        let pid = problem.id.to_string();
+        let title = problem.title.to_string();
+        print_solution_result(&pid, &title, sln, timeout_ms, best_index == 0);
 
         let c = match sln.result {
             FinalResult::Correct => (1, 1),
@@ -302,15 +289,15 @@ fn print_result(
         return c;
     }
 
-    let (problem_result, best_index) = make_problem_result(results);
     print_problem_result(problem, problem_result, timeout_ms, cost);
 
+    let raw_pid = "".to_string();
     let mut correct_count = 0;
     for (i, sln) in results.iter().enumerate() {
         if let FinalResult::Correct = sln.result {
             correct_count += 1;
         }
-        print_solution_result(sln, timeout_ms, best_index == (i as i32));
+        print_solution_result(&raw_pid, &sln.solution, sln, timeout_ms, best_index == (i as i32));
     }
 
     (correct_count, results.len() as i32)
@@ -323,6 +310,7 @@ enum WorkMode {
     Remote {
         client: messenger::Messenger,
         child: std::process::Child,
+        port_base: u16,
         port: u16,
         progname: String,
     },
@@ -349,8 +337,9 @@ impl RunContext {
         std::thread::sleep(time::Duration::from_millis(100));
 
         let client = messenger::Messenger::connect(port)?;
+        let port_base = port;
         Ok(Self {
-            mode: WorkMode::Remote { client, child, port, progname },
+            mode: WorkMode::Remote { client, child, port_base, port, progname },
         })
     }
 
@@ -359,32 +348,40 @@ impl RunContext {
             .arg("worker")
             .arg("-p")
             .arg(port.to_string())
+            .stdout(Stdio::null())
+            .stderr(Stdio::null())
             .spawn()
             .expect("failed to start worker process");
         Ok(child)
     }
 
     pub fn reconnect(&mut self) -> Result<(), std::io::Error> {
-        if let WorkMode::Remote { child,  port, progname, .. } = &mut self.mode {
+        if let WorkMode::Remote { child, port_base, port, progname, .. } = &mut self.mode {
             child.kill()?;
 
-            let child = Self::launch_worker(progname, *port + 1)?;
+            let next_port = if *port + 1 > u16::MAX || *port + 1 - *port_base > 1000 {
+                *port_base
+            } else {
+                *port + 1
+            };
+            let child = Self::launch_worker(progname, next_port)?;
             std::thread::sleep(time::Duration::from_millis(50));
-            let client = messenger::Messenger::connect(*port + 1)?;
+            let client = messenger::Messenger::connect(next_port)?;
             self.mode = WorkMode::Remote {
                 client,
                 child,
-                port: *port + 1,
+                port_base: *port_base,
+                port: next_port,
                 progname: progname.clone(),
             };
         }
         Ok(())
     }
 
-    fn run(&mut self, worker: &Worker, solution: &SolutionItem, timeout_ms: u64) -> RunResult {
+    fn run(&mut self, solution: &SolutionItem, timeout_ms: u64) -> RunResult {
         match &mut self.mode {
             WorkMode::Local { rt } => {
-                rt.block_on(run_solution(worker, solution, timeout_ms, false))
+                rt.block_on(run_solution(solution, timeout_ms, false))
             }
             WorkMode::Remote { client, .. } => {
                 let timeout = if timeout_ms > 0 {
@@ -401,6 +398,7 @@ impl RunContext {
                         solution.timeout_result(Duration::from_millis(timeout_ms))
                     }
                     Err(RunError::ProtocolMessageError { .. }) => {
+                        let _ = self.reconnect();
                         solution.crash_result(Duration::from_millis(0))
                     }
                     Err(e) => {
@@ -448,13 +446,10 @@ fn do_run(ctx: &mut RunContext, pids: Vec<ProblemSelection>, timeout_ms: u64, ch
     let mut count_solutions_succ = 0;
 
     let start_time = time::Instant::now();
-    let worker = Worker::on_static(problems::all_problems());
-    for problem in worker.problems.iter() {
+    for problem in problems::all_problems().iter() {
         if !pids.is_empty() && !pids.iter().any(|sel| sel.check(problem)) {
             continue;
         }
-
-        // let mut solutions = problem.make_run_result_list();
 
         let mut results = Vec::<RunResult>::new();
         let problem_time_start = time::Instant::now();
@@ -472,7 +467,7 @@ fn do_run(ctx: &mut RunContext, pids: Vec<ProblemSelection>, timeout_ms: u64, ch
             }
 
             let sln_timeout_ms = timeout_ms + problem.extra_time_ms;
-            let mut run_result = ctx.run(&worker, sln, sln_timeout_ms);
+            let mut run_result = ctx.run(sln, sln_timeout_ms);
             if check_answers {
                 run_result.check();
             }
