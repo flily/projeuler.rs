@@ -1,67 +1,4 @@
-use std::time;
-
-use colored::{Color, Colorize};
-
-use super::problem::{Problem, Solution, SolutionInfo};
-
-#[derive(Clone)]
-pub enum FinalResult {
-    None,       // Not run yet
-    Unknown,    // Run but not checked
-    Correct,
-    Wrong,
-    Timeout,
-    Crash,
-}
-
-impl FinalResult {
-    pub fn to_string(&self) -> &str {
-        match self {
-            FinalResult::None => "-",
-            FinalResult::Unknown => "?",
-            FinalResult::Correct => "correct",
-            FinalResult::Wrong => "wrong",
-            FinalResult::Timeout => "timeout",
-            FinalResult::Crash => "crash",
-        }
-    }
-
-    pub fn color(&self) -> colored::Color {
-        match self {
-            FinalResult::Correct => Color::Green,
-            FinalResult::Unknown => Color::Yellow,
-            FinalResult::Wrong => Color::Red,
-            FinalResult::Timeout => Color::Yellow,
-            FinalResult::Crash => Color::Red,
-            _ => Color::White,
-        }
-    }
-
-    pub fn color_string(&self) -> colored::ColoredString {
-        self.to_string().color(self.color())
-    }
-
-    pub fn color_on(&self, s: &str) -> colored::ColoredString {
-        s.color(self.color())
-    }
-}
-
-
-pub struct RunResult {
-    pub solution: &'static str,
-    pub entry: Solution,
-    pub answer: Option<i64>,
-    pub got: Option<i64>,
-    pub result: FinalResult,
-    pub cost: time::Duration,
-    pub extra_timeout_ms: u64,
-}
-
-impl RunResult {
-    pub fn check(&self, result: i64) -> bool {
-        result == self.answer.unwrap()
-    }
-}
+use super::problem::{Problem, SolutionItem};
 
 pub fn parse_duration(s: &str) -> Result<u64, String> {
     let s = s.trim();
@@ -121,7 +58,7 @@ impl SelectionInfo {
 #[derive(Debug, PartialEq)]
 pub struct ProblemSelection {
     pub id_title: SelectionInfo,
-    pub solutions: Option<Vec<SelectionInfo>>,
+    pub solutions: Vec<SelectionInfo>,
 }
 
 #[derive(Debug)]
@@ -203,7 +140,7 @@ fn parse_problem_selection_solutions(s: &[char], start: usize, title: &str) -> R
 
     Ok(ProblemSelection {
         id_title: SelectionInfo::from(title),
-        solutions: Some(solutions),
+        solutions,
     })
 }
 
@@ -224,7 +161,7 @@ fn parse_problem_selection_with_solutions(s: &[char], start: usize, title: &str)
                 } else {
                     Ok(ProblemSelection {
                         id_title: SelectionInfo::from(title),
-                        solutions: Some(vec![SelectionInfo::from(solution_name)]),
+                        solutions: vec![SelectionInfo::from(solution_name)],
                     })
                 }
             }
@@ -258,7 +195,7 @@ fn parse_problem_selection<T: AsRef<str>>(s: T) -> Result<ProblemSelection, Sele
     } else {
         Ok(ProblemSelection {
             id_title: SelectionInfo::from(title),
-            solutions: None,
+            solutions: Vec::new(),
         })
     }
 }
@@ -271,12 +208,11 @@ impl ProblemSelection {
     pub fn check(&self, problem: &Problem) -> bool {
         let check_id = self.id_title.contains_i64(problem.id);
         let check_title = self.id_title.contains_str(problem.title);
-        let check_solutions = if self.solutions.is_some() {
-            problem.solutions
+        let check_solutions = if !self.solutions.is_empty() {
+            problem.make_solution_items()
                 .iter()
-                .enumerate()
                 .any(
-                    |(index, solution)| self.check_solution(index, solution)
+                    |solution| self.check_solution(solution)
                 )
             } else {
                 true
@@ -285,28 +221,13 @@ impl ProblemSelection {
         (check_id || check_title) && check_solutions
     }
 
-    pub fn check_solution(&self, index: usize, solution: &SolutionInfo) -> bool {
-        if let Some(solutions) = &self.solutions {
-            for  sel_sol in solutions {
-                if sel_sol.contains_str(solution.name) {
+    pub fn check_solution(&self, solution: &SolutionItem) -> bool {
+        if !self.solutions.is_empty() {
+            for sel_sol in &self.solutions {
+                if sel_sol.contains_str(&solution.solution_name) {
                     return true;
                 }
-                if sel_sol.contains_i64(index as i64) {
-                    return true;
-                }
-            }
-        }
-
-        false
-    }
-
-    pub fn check_run_result(&self, index: usize, result: &RunResult) -> bool {
-        if let Some(solutions) = &self.solutions {
-            for  sel_sol in solutions {
-                if sel_sol.contains_str(result.solution) {
-                    return true;
-                }
-                if sel_sol.contains_i64(index as i64) {
+                if sel_sol.contains_i64(solution.index) {
                     return true;
                 }
             }
@@ -368,7 +289,7 @@ mod tests {
         let selection = result.unwrap();
         assert_eq!(selection.id_title.name, "42");
         assert_eq!(selection.id_title.num, Some(42));
-        assert_eq!(selection.solutions, None);
+        assert!(selection.solutions.is_empty());
 
         assert!(selection.check(&make_problem_info(42, "Lorem Ipsum", &[])));
         assert!(!selection.check(&make_problem_info(43, "Lorem Ipsum", &[])));
@@ -385,7 +306,7 @@ mod tests {
         let selection = result.unwrap();
         assert_eq!(selection.id_title.name, "re");
         assert_eq!(selection.id_title.num, None);
-        assert_eq!(selection.solutions, None);
+        assert!(selection.solutions.is_empty());
 
         assert!(selection.check(&make_problem_info(42, "Lorem Ipsum", &[])));
         assert!(selection.check(&make_problem_info(43, "Lorem Ipsum", &[])));
@@ -403,7 +324,7 @@ mod tests {
         let selection = result.unwrap();
         assert_eq!(selection.id_title.name, "42");
         assert_eq!(selection.id_title.num, Some(42));
-        assert_eq!(selection.solutions, Some(vec![SelectionInfo::from("2")]));
+        assert_eq!(selection.solutions, vec![SelectionInfo::from("2")]);
 
         assert!(selection.check(&make_problem_info(42, "Lorem Ipsum", &[
             "dolor sit amet", "consectetur adipiscing elit", "sed do eiusmod"])));
@@ -423,7 +344,7 @@ mod tests {
         let selection = result.unwrap();
         assert_eq!(selection.id_title.name, "42");
         assert_eq!(selection.id_title.num, Some(42));
-        assert_eq!(selection.solutions, Some(vec![SelectionInfo::from("it")]));
+        assert_eq!(selection.solutions, vec![SelectionInfo::from("it")]);
 
         assert!(selection.check(&make_problem_info(42, "Lorem Ipsum", &[
             "dolor sit amet", "consectetur adipiscing elit", "sed do eiusmod"])));
@@ -448,7 +369,7 @@ mod tests {
         let selection = result.unwrap();
         assert_eq!(selection.id_title.name, "re");
         assert_eq!(selection.id_title.num, None);
-        assert_eq!(selection.solutions, Some(vec![SelectionInfo::from("it")]));
+        assert_eq!(selection.solutions, vec![SelectionInfo::from("it")]);
 
         assert!(selection.check(&make_problem_info(42, "Lorem Ipsum", &[
             "dolor sit amet", "consectetur adipiscing elit", "sed do eiusmod"])));

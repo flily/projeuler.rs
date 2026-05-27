@@ -1,18 +1,21 @@
 use std::io::{self, BufRead, Write};
-use std::time;
+use std::process::Stdio;
+use std::time::{self, Duration};
 
 use clap::{Parser, Subcommand};
 use colored::{Color, Colorize};
 use tokio::{time::timeout, runtime};
 
-use crate::common::{Problem, SolutionInfo};
-use crate::common::launcher;
-use crate::common::launcher::{RunResult, FinalResult, ProblemSelection};
+use crate::common::{Problem, SolutionInfo, SolutionItem};
+use crate::common::launcher::{ProblemSelection, parse_duration};
+use crate::worker::message::{MessageResult, ParsedMessage, MessageResultFlags};
+use crate::worker::{FinalResult, RunError, RunResult, Worker, messenger};
 use management::ProblemManagement;
 
 mod common;
 mod problems;
 mod management;
+mod worker;
 
 const DEFAULT_TIMEOUT_MS: u64 = 500;
 
@@ -30,6 +33,12 @@ enum Command {
         /// check answers after running
         #[arg(short = 'c', long = "check", default_value_t = false)]
         check_answers: bool,
+        /// run in local mode without starting a worker process.
+        #[arg(short = 'l', long = "local", default_value_t = false)]
+        local_mode: bool,
+        /// port to start worker process and listen, default is 1707.
+        #[arg(short = 'p', long = "port", default_value_t = 1707)]
+        port: u16,
         /// always color the output, even when not running in a terminal
         #[arg(long = "color", default_value_t = false)]
         always_color: bool,
@@ -69,6 +78,23 @@ enum Command {
         #[arg(required = true)]
         pids: Vec<i64>,
     },
+    Client {
+        /// port to connect, default is 1707
+        #[arg(short = 'p', long = "port", default_value_t = 1707)]
+        port: u16,
+        #[arg(long = "pid", required = true)]
+        pid: i64,
+        #[arg(long = "sid", required = true)]
+        sid: i64,
+    },
+    Worker {
+        #[arg(short = 'p', long = "port", default_value_t = 1707)]
+        port: u16,
+        #[arg(long = "pid", default_value_t = -1)]
+        pid: i64,
+        #[arg(long = "sid", default_value_t = 0)]
+        solution_id: usize,
+    },
 }
 
 #[derive(clap::Parser)]
@@ -77,32 +103,8 @@ struct Args {
     command: Command,
 }
 
-
-fn make_run_results(info: &common::Problem) -> Vec<RunResult> {
-    info.solutions
-        .iter()
-        .map(|sln| RunResult {
-            solution: sln.name,
-            entry: sln.entry,
-            answer: Some(info.answer),
-            got: None,
-            result: FinalResult::None, // default to None, will be updated after running
-            cost: time::Duration::from_millis(0),
-            extra_timeout_ms: info.extra_time_ms,
-        })
-        .collect()
-}
-
-fn simple_run_solution(run_result: &mut RunResult) {
-    let entry = run_result.entry;
-
-    let t1 = time::Instant::now();
-    entry();
-    run_result.cost = t1.elapsed();
-}
-
-async fn run_solution(run_result: &mut RunResult, timeout_ms: u64, check_answer: bool) {
-    let entry = run_result.entry;
+async fn run_solution(solution: &SolutionItem, timeout_ms: u64, check_answer: bool) -> RunResult {
+    let entry = solution.entry;
 
     let t1 = time::Instant::now();
     let task = tokio::task::spawn_blocking(move || {
@@ -125,26 +127,17 @@ async fn run_solution(run_result: &mut RunResult, timeout_ms: u64, check_answer:
             Err(_) => Err(true),
         }
     };
-    run_result.cost = t1.elapsed();
+    let cost = t1.elapsed();
 
     match response {
         Ok(got) => {
-            run_result.got = Some(got);
-            if check_answer {
-                run_result.result = if run_result.check(got) {
-                    FinalResult::Correct
-                } else {
-                    FinalResult::Wrong
-                };
-            } else {
-                run_result.result = FinalResult::Unknown;   // we got a result but not checked
-            }
+            solution.finish_result(got, cost).with_check(check_answer)
         }
         Err(true) => {
-            run_result.result = FinalResult::Timeout;
+            solution.timeout_result(cost)
         }
         Err(false) => {
-            run_result.result = FinalResult::Crash;
+            solution.crash_result(cost)
         }
     }
 }
@@ -190,31 +183,41 @@ fn print_problem_result(problem: &common::Problem, problem_result: FinalResult, 
     let title = problem_result.color_on(problem.title);
     let cost_color = cost_time_color(cost, total_timeout);
     let cost = color_cost_time(cost, cost_color, false);
-    let result = problem_result.color_string();
-
+    let result = match problem_result {
+        FinalResult::Crash => problem_result.to_string().on_color(problem_result.color()),
+        _ => problem_result.color_string(),
+    };
     println!(
         "| {:>4} | {:<40} | {:^14} | {:^9} | {:>12} |",
         pid, title, "", result, cost,
     );
 }
 
-fn print_solution_result(run_result: &RunResult, timeout_ms: u64, is_best: bool) {
-    let result = run_result.result.color_string();
-    let solution = if is_best {
-        format!("* {}", run_result.solution).on_color(run_result.result.color()).bold()
+fn print_solution_result(pid: &str, title: &str, run_result: &RunResult, timeout_ms: u64, is_best: bool) {
+    let result_colour = run_result.result.color();
+    let pid_text = pid.color(result_colour).bold();
+    let title_text = if is_best {
+        format!("* {}", title).on_color(result_colour).bold()
     } else {
-        format!("+ {}", run_result.solution).color(run_result.result.color())
+        format!("+ {}", title).color(result_colour)
     };
-    let cost_color = cost_time_color(run_result.cost, timeout_ms);
+    let answer = if let Some(got) = run_result.got {
+        got.to_string().color(result_colour)
+    } else {
+        "NO RESULT".red()
+    };
+    let result = match run_result.result {
+        FinalResult::Crash => run_result.result.to_string().on_color(result_colour),
+        _ => run_result.result.color_string(),
+    };
+    
+    let total_timeout = timeout_ms + run_result.extra_timeout_ms;
+    let cost_color = cost_time_color(run_result.cost, total_timeout);
     let cost = match run_result.result {
         FinalResult::None => "-   ".yellow(),
         _ => color_cost_time(run_result.cost, cost_color, is_best),
     };
-    let answer = if let Some(got) = run_result.got {
-        got.to_string().color(run_result.result.color())
-    } else {
-        "NO RESULT".red()
-    };
+    
     let extra_timeout = if run_result.extra_timeout_ms > 0 {
         format!(" [+ {} ms]", run_result.extra_timeout_ms).yellow()
     } else {
@@ -223,16 +226,16 @@ fn print_solution_result(run_result: &RunResult, timeout_ms: u64, is_best: bool)
 
     println!(
         "| {:>4} | {:<40} | {:^14} | {:^9} | {:>12} |{}",
-        "", solution, answer, result, cost, extra_timeout,
+        pid_text, title_text, answer, result, cost, extra_timeout,
     );
 }
 
-fn make_problem_result(solutions: &[RunResult]) -> (FinalResult, i32) {
+fn make_problem_result(result_list: &[RunResult]) -> (FinalResult, i32) {
     let mut result = FinalResult::Timeout;
     let mut best_index = -1;
     let mut best_time = time::Duration::from_secs(0);
 
-    for (i, sln) in solutions.iter().enumerate() {
+    for (i, sln) in result_list.iter().enumerate() {
         match sln.result {
             FinalResult::Timeout => {}
             FinalResult::Correct => {
@@ -243,6 +246,7 @@ fn make_problem_result(solutions: &[RunResult]) -> (FinalResult, i32) {
                 }
             }
             FinalResult::None => {} // skip None result, not run yet
+            FinalResult::Unknown => {} // skip Unknown result, not checked yet
             _ => {
                 result = sln.result.clone();
                 break;
@@ -253,45 +257,20 @@ fn make_problem_result(solutions: &[RunResult]) -> (FinalResult, i32) {
     (result, best_index)
 }
 
-fn print_one_solution_problem(problem: &common::Problem, run_result: &RunResult, timeout_ms: u64) {
-    let total_timeout = timeout_ms + problem.extra_time_ms;
-    let pid = run_result.result.color_on(&problem.id.to_string().bold());
-    let title = problem.title.on_color(run_result.result.color());
-    let result = run_result.result.color_string();
-    let cost_color = cost_time_color(run_result.cost, total_timeout);
-    let cost = color_cost_time(run_result.cost, cost_color, matches!(run_result.result, FinalResult::Correct));
-    let answer = if let Some(got) = run_result.got {
-        got.to_string().color(run_result.result.color())
-    } else {
-        "NO RESULT".red()
-    };
-    let extra_timeout = if run_result.extra_timeout_ms > 0 {
-        format!(" [+ {} ms]", run_result.extra_timeout_ms).yellow()
-    } else {
-        "".into()
-    };
-
-    match run_result.result {
-         FinalResult::Correct => println!(
-            "| {:>4} | {:<40} | {:^14} | {:^9} | {:>12} |{}",
-            pid, title.bold(), answer, result, cost, extra_timeout,
-        ),
-        _ => println!(
-            "| {:>4} | {:<40} | {:^14} | {:^9} | {:>12} |{}",
-            pid, title, answer, result, cost, extra_timeout,
-        ),
-    }
-}
-
 fn print_result(
     problem: &common::Problem,
-    solutions: &[RunResult],
+    results: &[RunResult],
     timeout_ms: u64,
     cost: time::Duration,
 ) -> (i32, i32) {
-    if solutions.len() == 1 {
-        let sln = &solutions[0];
-        print_one_solution_problem(problem, sln, timeout_ms);
+    let (problem_result, best_index) = make_problem_result(results);
+
+    if results.len() == 1 {
+        let sln = &results[0];
+        // print_one_solution_problem(problem, sln, timeout_ms);
+        let pid = problem.id.to_string();
+        let title = problem.title.to_string();
+        print_solution_result(&pid, &title, sln, timeout_ms, best_index == 0);
 
         let c = match sln.result {
             FinalResult::Correct => (1, 1),
@@ -301,25 +280,141 @@ fn print_result(
         return c;
     }
 
-    let (problem_result, best_index) = make_problem_result(solutions);
     print_problem_result(problem, problem_result, timeout_ms, cost);
 
+    let raw_pid = "".to_string();
     let mut correct_count = 0;
-    for (i, sln) in solutions.iter().enumerate() {
+    for (i, sln) in results.iter().enumerate() {
         if let FinalResult::Correct = sln.result {
             correct_count += 1;
         }
-        print_solution_result(sln, timeout_ms, best_index == (i as i32));
+        print_solution_result(&raw_pid, &sln.solution, sln, timeout_ms, best_index == (i as i32));
     }
 
-    (correct_count, solutions.len() as i32)
+    (correct_count, results.len() as i32)
 }
 
-fn do_run(pids: Vec<ProblemSelection>, timeout_ms: u64, check_answers: bool) -> i32 {
-    let rt = runtime::Builder::new_current_thread()
-        .enable_time()
-        .build()
-        .expect("failed to create tokio runtime");
+enum WorkMode {
+    Local {
+        rt: runtime::Runtime
+    },
+    Remote {
+        client: messenger::Messenger,
+        child: std::process::Child,
+        port_base: u16,
+        port: u16,
+        progname: String,
+    },
+}
+
+struct RunContext {
+    mode: WorkMode,
+}
+
+impl RunContext {
+    pub fn local() -> Self {
+        Self {
+            mode: WorkMode::Local {
+                rt: runtime::Builder::new_current_thread()
+                    .enable_time()
+                    .build()
+                    .expect("failed to create tokio runtime"),
+            },
+        }
+    }
+
+    pub fn remote(progname: String, port: u16) -> Result<Self, std::io::Error> {
+        let child = RunContext::launch_worker(&progname, port)?;
+        std::thread::sleep(time::Duration::from_millis(100));
+
+        let client = messenger::Messenger::connect(port)?;
+        let port_base = port;
+        Ok(Self {
+            mode: WorkMode::Remote { client, child, port_base, port, progname },
+        })
+    }
+
+    pub fn launch_worker(progname: &String, port: u16) -> Result<std::process::Child, std::io::Error> {
+        let child = std::process::Command::new(progname)
+            .arg("worker")
+            .arg("-p")
+            .arg(port.to_string())
+            .stdout(Stdio::null())
+            .stderr(Stdio::null())
+            .spawn()
+            .expect("failed to start worker process");
+        Ok(child)
+    }
+
+    pub fn reconnect(&mut self) -> Result<(), std::io::Error> {
+        if let WorkMode::Remote { child, port_base, port, progname, .. } = &mut self.mode {
+            child.kill()?;
+
+            let next_port = if *port >= u16::MAX - 1 || *port + 1 - *port_base > 1000 {
+                *port_base
+            } else {
+                *port + 1
+            };
+            let child = Self::launch_worker(progname, next_port)?;
+            std::thread::sleep(time::Duration::from_millis(50));
+            let client = messenger::Messenger::connect(next_port)?;
+            self.mode = WorkMode::Remote {
+                client,
+                child,
+                port_base: *port_base,
+                port: next_port,
+                progname: progname.clone(),
+            };
+        }
+        Ok(())
+    }
+
+    fn run(&mut self, solution: &SolutionItem, timeout_ms: u64) -> RunResult {
+        match &mut self.mode {
+            WorkMode::Local { rt } => {
+                rt.block_on(run_solution(solution, timeout_ms, false))
+            }
+            WorkMode::Remote { client, .. } => {
+                let timeout = if timeout_ms > 0 {
+                    Some(Duration::from_millis(timeout_ms))
+                } else {
+                    None
+                };
+                match client.run_solution(solution, timeout) {
+                    Ok((got, cost)) => {
+                        solution.finish_result(got, cost)
+                    }
+                    Err(RunError::Timeout) => {
+                        let _ = self.reconnect();
+                        solution.timeout_result(Duration::from_millis(timeout_ms))
+                    }
+                    Err(RunError::ProtocolMessageError { .. }) => {
+                        let _ = self.reconnect();
+                        solution.crash_result(Duration::from_millis(0))
+                    }
+                    Err(e) => {
+                        println!("Got unknown run error: {:?}", e);
+                        solution.crash_result(Duration::from_millis(0))
+                    }
+                }
+            }
+        }
+    }
+
+    fn shutdown(self) {
+        match self.mode {
+            WorkMode::Local { rt } => {
+                rt.shutdown_background();
+            }
+            WorkMode::Remote { mut child, client, .. } => {
+                let _ = child.kill();
+                let _ = client.close();
+            }
+         }
+    }
+}
+
+fn do_run(ctx: &mut RunContext, pids: Vec<ProblemSelection>, timeout_ms: u64, check_answers: bool) {
     let sepline = "+".to_string()
         + &"-".repeat(4 + 2) + "+"      // PID
         + &"-".repeat(40 + 2) + "+"     // Title
@@ -347,35 +442,32 @@ fn do_run(pids: Vec<ProblemSelection>, timeout_ms: u64, check_answers: bool) -> 
             continue;
         }
 
-        let mut solutions = make_run_results(problem);
+        let mut results = Vec::<RunResult>::new();
         let problem_time_start = time::Instant::now();
-        for (index, sln) in solutions.iter_mut().enumerate() {
+        for sln in problem.make_solution_items().iter() {
             let flag = pids
-            .iter()
-            .any(|sel| sel.check(problem) && sel.check_run_result(index, sln));
+                .iter()
+                .any(|sel| sel.check(problem) && sel.check_solution(sln));
             if !pids.is_empty() && !flag {
                 continue;
             }
 
-            if sln.solution.starts_with("_") {
+            if sln.solution_name.starts_with("_") {
                 // skip solution with name start with "_", treat it as unfinished or not suggested to run.
                 continue;
             }
 
             let sln_timeout_ms = timeout_ms + problem.extra_time_ms;
-            rt.block_on(run_solution(sln, sln_timeout_ms, check_answers));
-            // run correct solutions again to get more accurate time cost.
-            match sln.result {
-                FinalResult::Correct if sln.cost < time::Duration::from_micros(5) => {
-                    // only solutions use very short time can make big difference.
-                    simple_run_solution(sln);
-                }
-                _ => {}
+            let mut run_result = ctx.run(sln, sln_timeout_ms);
+            if check_answers {
+                run_result.check();
             }
+            
+            results.push(run_result);
         }
         let problem_time = problem_time_start.elapsed();
 
-        let (correct_count, total_count) = print_result(problem, &solutions, timeout_ms, problem_time);
+        let (correct_count, total_count) = print_result(problem, &results, timeout_ms, problem_time);
 
         count_solutions_succ += correct_count;
         count_solutions += total_count;
@@ -413,9 +505,6 @@ fn do_run(pids: Vec<ProblemSelection>, timeout_ms: u64, check_answers: bool) -> 
     );
     let time_cost = format!("{:.3} ms", elapsed_time).yellow();
     println!("Total time: {}", time_cost);
-
-    rt.shutdown_background();
-    count_problems - count_problems_succ
 }
 
 fn do_list(pids: Vec<i64>) {
@@ -593,6 +682,104 @@ fn do_delete(pids: Vec<i64>, full_delete: bool) {
     }
 }
 
+fn worker_test(worker: &Worker, pid: i64, solution_id: usize) {
+    let result = worker.run(pid, solution_id);
+    if result.is_err() {
+        println!("run_solution error: {:?}", result.err().unwrap());
+        return;
+    }
+
+    let run_result = result.unwrap();
+    println!("run_solution: {:?}", run_result);
+}
+
+fn do_worker(port: u16, pid: i64, solution_id: usize) {
+    let listener = messenger::MessengerListener::listen(port);
+    if listener.is_err() {
+        println!("failed to start worker listener on port {}: {:?}", port, listener.err().unwrap());
+        return;
+    }
+    let listener = listener.unwrap();
+
+    let worker = Worker::on_static(problems::all_problems());
+
+    if pid > 0 {
+        worker_test(&worker, pid, solution_id);
+        return;
+    }
+
+    let mut conn = listener.accept()
+        .expect("failed to accept connection");
+
+    loop {
+        let r = conn.recv();
+        match r {
+            Ok(ParsedMessage::Ping(msg)) => {
+                let pong = msg.to_pong();
+                conn.send(&pong).expect("send pong failed");
+            }
+            Ok(ParsedMessage::Run(msg)) => {
+                let pid = msg.problem_id as i64;
+                let sid = msg.solutions_id as usize;
+                let result = worker.run(pid, sid);
+                let response = match result {
+                    Ok(run_result) => {
+                        msg.reply(run_result.cost,
+                                  run_result.answer.unwrap(), 
+                                  MessageResultFlags::empty())
+                    }
+                    Err(RunError::ProblemNotFound { problem_id }) => {
+                        MessageResult::problem_not_found(problem_id as i32)
+                    }
+                    Err(RunError::SolutionNotFound { problem_id, solution_id }) => {
+                        MessageResult::solution_not_found(problem_id as i32, solution_id as i32)
+                    }
+                    Err(_) => {
+                        // impossible
+                        MessageResult::problem_not_found(0)
+                    }
+                };
+                conn.send(&response).unwrap();
+            }
+            Ok(_) => {
+                println!("Received unexpected message");
+                break;
+            }
+            Err(e) => {
+                println!("Failed to receive message: {:?}", e);
+                break;
+            }
+        }
+    }
+}
+
+fn do_client(port: u16, pid: i64, sid: i64) {
+    let m = messenger::Messenger::connect(port);
+    if m.is_err() {
+        println!("failed to connect to {}: {:?}", port, m.err().unwrap());
+        return;
+    }
+    let mut m = m.unwrap();
+
+    m.ping().expect("ping failed");
+
+    let result = m.run(pid, sid as usize, None);
+    match result {
+        Ok(run_result) => {
+            println!("Run result: {:?}", run_result);
+        }
+        Err(RunError::ProtocolMessageError { source }) => {
+            println!("Protocol message error: {:?}", source);
+        }
+        Err(RunError::NetworkError { source }) => {
+            println!("Network error: {:?}", source);
+        }
+        Err(e) => {
+            println!("Run error: {:?}", e);
+        }
+    }
+}
+
 fn main() {
     let args = Args::parse();
 
@@ -602,12 +789,14 @@ fn main() {
             timeout_str,
             no_timeout,
             check_answers,
+            local_mode,
+            port,
             always_color,
         } => {
             let timeout_ms = if no_timeout {
                 0
             } else {
-                match launcher::parse_duration(&timeout_str) {
+                match parse_duration(&timeout_str) {
                     Ok(ms) => ms,
                     Err(e) => {
                         eprintln!("invalid timeout '{}': {}", timeout_str, e);
@@ -625,8 +814,17 @@ fn main() {
                 solution_selection.push(sel);
             }
 
-            let rc = do_run(solution_selection, timeout_ms, check_answers);
-            std::process::exit(rc);
+            let mut ctx = if local_mode {
+                println!("running in local mode, solutions will run in the same process...");
+                RunContext::local()
+            } else {
+                println!("starting worker process on port {}...", port);
+                let progname = std::env::current_exe().unwrap();
+                RunContext::remote(progname.to_str().unwrap().to_string(), port).expect("")
+            };
+
+            do_run(&mut ctx, solution_selection, timeout_ms, check_answers);
+            ctx.shutdown();
         }
 
         Command::List { pids } => do_list(pids),
@@ -650,6 +848,20 @@ fn main() {
             };
 
             do_add(pid, &title_str, answer, &solutions, auto_confirm, dry_run);
+        }
+        Command::Worker {
+            port,
+            pid,
+            solution_id,
+        } => {
+            do_worker(port, pid, solution_id);
+        }
+        Command::Client {
+            port,
+            pid,
+            sid,
+        } => {
+            do_client(port, pid, sid);
         }
     }
 }
