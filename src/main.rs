@@ -209,7 +209,11 @@ fn print_solution_result(pid: &str, title: &str, run_result: &RunResult, timeout
     let answer = if let Some(got) = run_result.got {
         got.to_string().color(result_colour)
     } else {
-        "NO RESULT".red()
+        match run_result.result {
+            FinalResult::Unknown => "?".yellow(),
+            FinalResult::Skipped => "skipped".yellow(),
+            _ => "NO RESULT".red().bold(),
+        }
     };
     let result = match run_result.result {
         FinalResult::Crash => run_result.result.to_string().on_color(result_colour),
@@ -220,6 +224,7 @@ fn print_solution_result(pid: &str, title: &str, run_result: &RunResult, timeout
     let cost_color = cost_time_color(run_result.cost, total_timeout);
     let cost = match run_result.result {
         FinalResult::None => "-   ".yellow(),
+        FinalResult::Skipped => "-   ".yellow().bold(),
         _ => color_cost_time(run_result.cost, cost_color, is_best),
     };
     
@@ -236,7 +241,7 @@ fn print_solution_result(pid: &str, title: &str, run_result: &RunResult, timeout
 }
 
 fn make_problem_result(result_list: &[RunResult]) -> (FinalResult, i32) {
-    let mut result = FinalResult::Timeout;
+    let mut result = FinalResult::Unknown;
     let mut best_index = -1;
     let mut best_time = time::Duration::from_secs(0);
 
@@ -252,6 +257,7 @@ fn make_problem_result(result_list: &[RunResult]) -> (FinalResult, i32) {
             }
             FinalResult::None => {} // skip None result, not run yet
             FinalResult::Unknown => {} // skip Unknown result, not checked yet
+            FinalResult::Skipped => {} // skip Skipped result, not run by selection
             _ => {
                 result = sln.result.clone();
                 break;
@@ -453,25 +459,23 @@ fn do_run(ctx: &mut RunContext, pids: Vec<ProblemSelection>, timeout_ms: u64, ch
             let flag = pids
                 .iter()
                 .any(|sel| sel.check(problem) && sel.check_solution(sln));
-            if !pids.is_empty() && !flag {
-                continue;
-            }
-
-            if sln.solution_name.starts_with("_") {
-                // skip solution with name start with "_", treat it as unfinished or not suggested to run.
-                continue;
-            }
-
-            let sln_timeout_ms = timeout_ms + problem.extra_time_ms;
-            let mut run_result = ctx.run(sln, sln_timeout_ms);
-            if check_answers {
-                run_result.check();
-            }
             
+            let run_result = if !pids.is_empty() && !flag {
+                sln.run_result().skip()
+
+            } else if sln.solution_name.starts_with("_") {
+                // skip solution with name start with "_", treat it as unfinished or not suggested to run.
+                sln.run_result().skip()
+
+            } else {
+                let sln_timeout_ms = timeout_ms + problem.extra_time_ms;
+                ctx.run(sln, sln_timeout_ms).with_check(check_answers)
+            };
+
             results.push(run_result);
         }
-        let problem_time = problem_time_start.elapsed();
 
+        let problem_time = problem_time_start.elapsed();
         let (correct_count, total_count) = print_result(problem, &results, timeout_ms, problem_time);
 
         count_solutions_succ += correct_count;
@@ -804,13 +808,20 @@ fn main() {
 
             let mut solution_selection = Vec::new();
             for pid_str in pids {
-                let sel = ProblemSelection::parse(&pid_str).unwrap();
-                solution_selection.push(sel);
+                let sel = ProblemSelection::parse(&pid_str);
+                match sel {
+                    Ok(sel) => solution_selection.push(sel),
+                    Err(e) => {
+                        println!("invalid problem selection '{}':\n{}", pid_str, e);
+                        return;
+                    }
+                }
             }
 
             let mut ctx = if local_mode {
                 println!("running in local mode, solutions will run in the same process...");
                 RunContext::local()
+
             } else {
                 println!("starting worker process on port {}...", port);
                 let progname = std::env::current_exe().unwrap();

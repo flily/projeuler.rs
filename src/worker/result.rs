@@ -8,6 +8,7 @@ use super::message;
 pub enum FinalResult {
     None,       // Not run yet
     Unknown,    // Run but not checked
+    Skipped,    // Skipped by user
     Correct,
     Wrong,
     Timeout,
@@ -19,6 +20,7 @@ impl FinalResult {
         match self {
             Self::None => "-",
             Self::Unknown => "?",
+            Self::Skipped => "skipped",
             Self::Correct => "correct",
             Self::Wrong => "wrong",
             Self::Timeout => "timeout",
@@ -30,6 +32,7 @@ impl FinalResult {
         match self {
             Self::Correct => Color::Green,
             Self::Unknown => Color::Yellow,
+            Self::Skipped => Color::Yellow,
             Self::Wrong => Color::Red,
             Self::Timeout => Color::Yellow,
             Self::Crash => Color::Red,
@@ -84,6 +87,11 @@ impl RunResult {
     pub fn crash(mut self, cost: time::Duration) -> Self {
         self.result = FinalResult::Crash;
         self.cost = cost;
+        self
+    }
+
+    pub fn skip(mut self) -> Self {
+        self.result = FinalResult::Skipped;
         self
     }
 
