@@ -1,27 +1,17 @@
-use crate::common::{Problem, SolutionInfo, load_data};
+use crate::common::Problem;
 
 mod bruteforce;
 mod flood;
 
-pub static INFO: std::sync::LazyLock<Problem> = std::sync::LazyLock::new(|| Problem {
-    id: 67,
-    title: "Maximum Path Sum II",
-    answer: 7273,
-    extra_time_ms: 0,
-    solutions: vec![
-        SolutionInfo {
-            name: "bruteforce",
-            entry: bruteforce::solve,
-        },
-        SolutionInfo {
-            name: "flood fill",
-            entry: flood::solve,
-        },
-    ],
-});
+pub static INFO: std::sync::LazyLock<Problem> = std::sync::LazyLock::new(||
+    Problem::init(67, "Maximum Path Sum II")
+        .with_answer(7273)
+        .solution("bruteforce", bruteforce::solve)
+        .solution("flood fill", flood::solve)
+);
 
 pub fn load() -> Vec<Vec<i64>> {
-    let raw = load_data();
+    let raw = Problem::load_data();
     let content = String::from_utf8(raw).unwrap();
     let mut result = Vec::new();
     

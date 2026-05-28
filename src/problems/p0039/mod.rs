@@ -1,26 +1,13 @@
-use crate::common::{Problem, SolutionInfo};
+use crate::common::Problem;
 
 mod naive;
 mod generator;
 mod euclid_formula;
 
-pub static INFO: std::sync::LazyLock<Problem> = std::sync::LazyLock::new(|| Problem {
-    id: 39,
-    title: "Integer Right Triangles",
-    answer: 840,
-    extra_time_ms: 0,
-    solutions: vec![
-        SolutionInfo {
-            name: "naive",
-            entry: naive::solve,
-        },
-        SolutionInfo {
-            name: "order generator",
-            entry: generator::solve,
-        },
-        SolutionInfo {
-            name: "Euclid's formula",
-            entry: euclid_formula::solve,
-        },
-    ],
-});
+pub static INFO: std::sync::LazyLock<Problem> = std::sync::LazyLock::new(||
+    Problem::init(39, "Integer Right Triangles")
+        .with_answer(840)
+        .solution("naive", naive::solve)
+        .solution("order generator", generator::solve)
+        .solution("Euclid's formula", euclid_formula::solve)
+);

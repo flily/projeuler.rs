@@ -1,21 +1,11 @@
-use crate::common::{Problem, SolutionInfo};
+use crate::common::Problem;
 
 mod naive;
 mod facttable;
 
-pub static INFO: std::sync::LazyLock<Problem> = std::sync::LazyLock::new(|| Problem {
-    id: 34,
-    title: "Digit Factorials",
-    answer: 40730,
-    extra_time_ms: 0,
-    solutions: vec![
-        SolutionInfo {
-            name: "naive",
-            entry: naive::solve,
-        },
-        SolutionInfo {
-            name: "factorial table",
-            entry: facttable::solve,
-        },
-    ],
-});
+pub static INFO: std::sync::LazyLock<Problem> = std::sync::LazyLock::new(||
+    Problem::init(34, "Digit Factorials")
+        .with_answer(40730)
+        .solution("naive", naive::solve)
+        .solution("factorial table", facttable::solve)
+);

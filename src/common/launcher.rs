@@ -207,7 +207,7 @@ impl ProblemSelection {
 
     pub fn check(&self, problem: &Problem) -> bool {
         let check_id = self.id_title.contains_i64(problem.id);
-        let check_title = self.id_title.contains_str(problem.title);
+        let check_title = self.id_title.contains_str(&problem.title);
         let check_solutions = if !self.solutions.is_empty() {
             problem.make_solution_items()
                 .iter()
@@ -268,16 +268,10 @@ mod tests {
     }
 
     fn make_problem_info(id: i64, title: &str, solutions: &[&str]) -> Problem {
-        Problem {
-            id,
-            title: Box::leak(Box::new(title.to_string())),
-            answer: 0,
-            extra_time_ms: 0,
-            solutions: solutions.iter().map(|&s| SolutionInfo {
-                name: Box::leak(Box::new(s.to_string())),
-                entry: || 0, // dummy entry
-            }).collect(),
-        }
+        Problem::init(id, title)
+            .with_solutions(solutions.iter().map(|&s| 
+                SolutionInfo::new(s, || 0) // dummy entry
+            ).collect())
     }
 
     #[test]

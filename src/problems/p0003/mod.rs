@@ -1,26 +1,13 @@
-use crate::common::{Problem, SolutionInfo};
+use crate::common::Problem;
 
 mod naive;
 mod remove_factor;
 mod prime_table;
 
-pub static INFO: std::sync::LazyLock<Problem> = std::sync::LazyLock::new(|| Problem {
-    id: 3,
-    title: "Largest Prime Factor",
-    answer: 6857,
-    extra_time_ms: 0,
-    solutions: vec![
-        SolutionInfo {
-            name: "naive",
-            entry: naive::solve,
-        },
-        SolutionInfo {
-            name: "remove factors",
-            entry: remove_factor::solve,
-        },
-        SolutionInfo {
-            name: "prime table",
-            entry: prime_table::solve,
-        },
-    ],
-});
+pub static INFO: std::sync::LazyLock<Problem> = std::sync::LazyLock::new(||
+    Problem::init(3, "Problem 3")
+        .with_answer(0)
+        .solution("naive", naive::solve)
+        .solution("remove_factor", remove_factor::solve)
+        .solution("prime_table", prime_table::solve)
+);

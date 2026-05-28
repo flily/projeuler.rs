@@ -177,40 +177,36 @@ impl ProblemManagement for Problem {
         let problem_mod_filename = self.mod_filename();
 
         let mut lines = Vec::<String>::new();
-        lines.push("use crate::common::{Problem, SolutionInfo};".to_string());
+        lines.push("use crate::common::Problem;".to_string());
         lines.push("".to_string());
 
         for sln in &self.solutions {
-            if MODNAME_FIRST.contains(&sln.name) {
+            if MODNAME_FIRST.contains(&sln.name.as_str()) {
                 lines.push(format!("mod {};", sln.name));
             }
         }
 
         for sln in &self.solutions {
-            if !MODNAME_FIRST.contains(&sln.name) {
+            if !MODNAME_FIRST.contains(&sln.name.as_str()) {
                 lines.push(format!("mod {};", sln.name));
             }
         }
 
         let mut info = vec![
-            "".to_string(),
-            "pub static INFO: std::sync::LazyLock<Problem> = std::sync::LazyLock::new(|| Problem {".to_string(),
-            format!("    id: {},", self.id),
-            format!("    title: \"{}\",", self.title),
-            format!("    answer: {},", self.answer),
-            "    extra_time_ms: 0,".to_string(),
-            "    solutions: vec![".to_string(),
+            format!(""),
+            format!("pub static INFO: std::sync::LazyLock<Problem> = std::sync::LazyLock::new(||"),
+            format!("    Problem::init({}, \"{}\")", self.id, self.title),
         ];
 
-        for sln in &self.solutions {
-            info.push("        SolutionInfo {".to_string());
-            info.push(format!("            name: \"{}\",", sln.name));
-            info.push(format!("            entry: {}::solve,", sln.name));
-            info.push("        },".to_string());
+        if let Some(answer) = self.answer {
+            info.push(format!("        .with_answer({})", answer));
         }
 
-        info.push("    ],".to_string());
-        info.push("});".to_string());
+        for sln in &self.solutions {
+            info.push(format!("        .solution(\"{}\", {}::solve)", sln.name, sln.name));
+        }
+
+        info.push(");".to_string());
         info.push("".to_string());
 
         lines.extend(info);
@@ -270,10 +266,7 @@ impl ProblemManagement for Problem {
             }
 
             if self.solutions.is_empty() {
-                self.solutions.push(SolutionInfo {
-                    name: "naive",
-                    entry: || 0,
-                });
+                self.solutions.push(SolutionInfo::new("naive", || 0));
             }
 
             if !dry_run {
@@ -283,7 +276,7 @@ impl ProblemManagement for Problem {
 
         // check solution files
         for sln in &self.solutions {
-            let sln_filename = self.solution_filename(sln.name);
+            let sln_filename = self.solution_filename(&sln.name);
             let sln_path = Path::new(&sln_filename);
             if !sln_path.exists() {
                 count += 1;
@@ -291,7 +284,7 @@ impl ProblemManagement for Problem {
                     cb(&FileAction::CreateFile, &sln_filename);
                 }
                 if !dry_run {
-                    self.create_solution_file(sln.name)?;
+                    self.create_solution_file(&sln.name)?;
                 }
             }
         }

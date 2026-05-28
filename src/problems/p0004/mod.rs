@@ -1,4 +1,4 @@
-use crate::common::{Problem, SolutionInfo};
+use crate::common::Problem;
 
 mod string;
 mod integer;
@@ -6,55 +6,18 @@ mod algebraic;
 mod generate;
 mod order;
 
-pub static INFO: std::sync::LazyLock<Problem> = std::sync::LazyLock::new(|| Problem {
-    id: 4,
-    title: "Largest Palindrome Product",
-    answer: 906609,
-    extra_time_ms: 0,
-    solutions: vec![
-        SolutionInfo {
-            name: "by string (forward search)",
-            entry: string::solve,
-        },
-        SolutionInfo {
-            name: "by string (reverse vector)",
-            entry: string::solve_reverse_vec,
-        },
-        SolutionInfo {
-            name: "by string (reverse loop)",
-            entry: string::solve_reverse_loop,
-        },
-        SolutionInfo {
-            name: "by integer (forward search)",
-            entry: integer::solve,
-        },
-        SolutionInfo {
-            name: "by integer (reverse vector)",
-            entry: integer::solve_reverse_vec,
-        },
-        SolutionInfo {
-            name: "by integer (reverse loop)",
-            entry: integer::solve_reverse_loop,
-        },
-        SolutionInfo {
-            name: "by integer algebraic (forward search)",
-            entry: algebraic::solve,
-        },
-        SolutionInfo {
-            name: "by integer algebraic (reverse vector)",
-            entry: algebraic::solve_reverse_vec,
-        },
-        SolutionInfo {
-            name: "by integer algebraic (reverse loop)",
-            entry: algebraic::solve_reverse_loop,
-        },
-        SolutionInfo {
-            name: "by generating palindrome",
-            entry: generate::solve,
-        },
-        SolutionInfo {
-            name: "by multiplying orders iterate",
-            entry: order::solve,
-        },
-    ],
-});
+pub static INFO: std::sync::LazyLock<Problem> = std::sync::LazyLock::new(||
+    Problem::init(4, "Largest Palindrome Product")
+        .with_answer(906609)
+        .solution("by string (forward search)", string::solve)
+        .solution("by string (reverse vector)", string::solve_reverse_vec)
+        .solution("by string (reverse loop)", string::solve_reverse_loop)
+        .solution("by integer (forward search)", integer::solve)
+        .solution("by integer (reverse vector)", integer::solve_reverse_vec)
+        .solution("by integer (reverse loop)", integer::solve_reverse_loop)
+        .solution("by integer algebraic (forward search)", algebraic::solve)
+        .solution("by integer algebraic (reverse vector)", algebraic::solve_reverse_vec)
+        .solution("by integer algebraic (reverse loop)", algebraic::solve_reverse_loop)
+        .solution("by generating palindrome", generate::solve)
+        .solution("by multiplying orders iterate", order::solve)
+);

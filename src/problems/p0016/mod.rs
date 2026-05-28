@@ -1,16 +1,9 @@
-use crate::common::{Problem, SolutionInfo};
+use crate::common::Problem;
 
 mod naive;
 
-pub static INFO: std::sync::LazyLock<Problem> = std::sync::LazyLock::new(|| Problem {
-    id: 16,
-    title: "Power Digit Sum",
-    answer: 1366,
-    extra_time_ms: 0,
-    solutions: vec![
-        SolutionInfo {
-            name: "naive",
-            entry: naive::solve,
-        },
-    ],
-});
+pub static INFO: std::sync::LazyLock<Problem> = std::sync::LazyLock::new(||
+    Problem::init(16, "Power Digit Sum")
+        .with_answer(1366)
+        .solution("naive", naive::solve)
+);

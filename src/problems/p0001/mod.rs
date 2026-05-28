@@ -1,16 +1,9 @@
-use crate::common::{Problem, SolutionInfo};
+use crate::common::Problem;
 
 mod naive;
 
-pub static INFO: std::sync::LazyLock<Problem> = std::sync::LazyLock::new(|| Problem {
-    id: 1,
-    title: "Multiples of 3 and 5",
-    answer: 233168,
-    extra_time_ms: 0,
-    solutions: vec![
-        SolutionInfo {
-            name: "naive",
-            entry: naive::solve,
-        },
-    ],
-});
+pub static INFO: std::sync::LazyLock<Problem> = std::sync::LazyLock::new(||
+    Problem::init(1, "Multiples of 3 and 5")
+        .with_answer(233168)
+        .solution("naive", naive::solve)
+);

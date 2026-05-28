@@ -1,4 +1,4 @@
-use crate::common::{Problem, SolutionInfo};
+use crate::common::Problem;
 
 mod nums;
 
@@ -6,23 +6,10 @@ mod tpnumbigint;
 mod stringint;
 mod tpmalachite;
 
-pub static INFO: std::sync::LazyLock<Problem> = std::sync::LazyLock::new(|| Problem {
-    id: 13,
-    title: "Large Sum",
-    answer: 5537376230,
-    extra_time_ms: 0,
-    solutions: vec![
-        SolutionInfo {
-            name: "BigInt (num-bigint)",
-            entry: tpnumbigint::solve,
-        },
-        SolutionInfo {
-            name: "bigint by Vec<u8>",
-            entry: stringint::solve,
-        },
-        SolutionInfo {
-            name: "BigInt (malachite)",
-            entry: tpmalachite::solve,
-        },
-    ],
-});
+pub static INFO: std::sync::LazyLock<Problem> = std::sync::LazyLock::new(||
+    Problem::init(13, "Large Sum")
+        .with_answer(5537376230)
+        .solution("BigInt (num-bigint)", tpnumbigint::solve)
+        .solution("bigint by Vec<u8>", stringint::solve)
+        .solution("BigInt (malachite)", tpmalachite::solve)
+);

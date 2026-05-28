@@ -1,26 +1,13 @@
-use crate::common::{Problem, SolutionInfo};
+use crate::common::Problem;
 
 mod modulo;
 mod tpnumbigint;
 mod tpmalachite;
 
-pub static INFO: std::sync::LazyLock<Problem> = std::sync::LazyLock::new(|| Problem {
-    id: 97,
-    title: "Large Non-Mersenne Prime",
-    answer: 8739992577,
-    extra_time_ms: 0,
-    solutions: vec![
-        SolutionInfo {
-            name: "multiply with modulo",
-            entry: modulo::solve,
-        },
-        SolutionInfo {
-            name: "naive BigInt (num-bigint)",
-            entry: tpnumbigint::solve,
-        },
-        SolutionInfo {
-            name: "naive BigInt (malachite)",
-            entry: tpmalachite::solve,
-        },
-    ],
-});
+pub static INFO: std::sync::LazyLock<Problem> = std::sync::LazyLock::new(||
+    Problem::init(97, "Large Non-Mersenne Prime")
+        .with_answer(8739992577)
+        .solution("multiply with modulo", modulo::solve)
+        .solution("naive BigInt (num-bigint)", tpnumbigint::solve)
+        .solution("naive BigInt (malachite)", tpmalachite::solve)
+);

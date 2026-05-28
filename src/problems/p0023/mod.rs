@@ -1,26 +1,13 @@
-use crate::common::{Problem, SolutionInfo};
+use crate::common::Problem;
 
 mod naive;
 mod cache;
 mod substraction;
 
-pub static INFO: std::sync::LazyLock<Problem> = std::sync::LazyLock::new(|| Problem {
-    id: 23,
-    title: "Non-Abundant Sums",
-    answer: 4179871,
-    extra_time_ms: 0,
-    solutions: vec![
-        SolutionInfo {
-            name: "naive",
-            entry: naive::solve,
-        },
-        SolutionInfo {
-            name: "cache",
-            entry: cache::solve,
-        },
-        SolutionInfo {
-            name: "substraction",
-            entry: substraction::solve,
-        },
-    ],
-});
+pub static INFO: std::sync::LazyLock<Problem> = std::sync::LazyLock::new(||
+    Problem::init(23, "Non-Abundant Sums")
+        .with_answer(4179871)
+        .solution("naive", naive::solve)
+        .solution("cache", cache::solve)
+        .solution("substraction", substraction::solve)
+);

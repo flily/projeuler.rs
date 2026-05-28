@@ -1,4 +1,4 @@
-use crate::common::{Problem, SolutionInfo};
+use crate::common::Problem;
 
 mod naive;
 mod factorial_table;
@@ -6,31 +6,12 @@ mod cachefinal;
 mod cachechain1;
 mod cachechain2;
 
-pub static INFO: std::sync::LazyLock<Problem> = std::sync::LazyLock::new(|| Problem {
-    id: 74,
-    title: "Digit Factorial Chains",
-    answer: 402,
-    extra_time_ms: 0,
-    solutions: vec![
-        SolutionInfo {
-            name: "naive",
-            entry: naive::solve,
-        },
-        SolutionInfo {
-            name: "factorial table",
-            entry: factorial_table::solve,
-        },
-        SolutionInfo {
-            name: "cache final results",
-            entry: cachefinal::solve,
-        },
-        SolutionInfo {
-            name: "cache chain (with HashSet index)",
-            entry: cachechain1::solve,
-        },
-        SolutionInfo {
-            name: "cache chain (no HashSet index)",
-            entry: cachechain2::solve,
-        },
-    ],
-});
+pub static INFO: std::sync::LazyLock<Problem> = std::sync::LazyLock::new(||
+    Problem::init(74, "Digit Factorial Chains")
+        .with_answer(402)
+        .solution("naive", naive::solve)
+        .solution("factorial table", factorial_table::solve)
+        .solution("cache final results", cachefinal::solve)
+        .solution("cache chain (with HashSet index)", cachechain1::solve)
+        .solution("cache chain (no HashSet index)", cachechain2::solve)
+);

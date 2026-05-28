@@ -181,7 +181,7 @@ fn print_problem_result(problem: &common::Problem, problem_result: FinalResult,
     let total_timeout = (problem.solutions.len() as u64) * (timeout_ms + problem.extra_time_ms);
 
     let pid = problem_result.color_on(&problem.id.to_string());
-    let title = problem_result.color_on(problem.title);
+    let title = problem_result.color_on(&problem.title);
     let cost_color = cost_time_color(problem_cost, total_timeout);
     let cost = color_cost_time(problem_cost, cost_color, false);
     let result = match problem_result {
@@ -190,7 +190,7 @@ fn print_problem_result(problem: &common::Problem, problem_result: FinalResult,
     };
     let overhead_cost = problem_cost - solution_cost;
     let overhead_color = cost_time_color(overhead_cost, total_timeout);
-    let overhead = format!("+~> {:.3} ms", overhead_cost.as_nanos() as f64 / 1_000_000.0).on_color(overhead_color);
+    let overhead = format!("+~> {:.3} ms", overhead_cost.as_nanos() as f64 / 1_000_000.0).color(overhead_color);
 
     println!(
         "| {:>4} | {:<40} | {:^14} | {:^9} | {:>12} | {}",
@@ -592,25 +592,14 @@ fn print_action(action: &management::FileAction, path: &str) {
 }
 
 fn do_add(pid: i64, title: &str, answer: i64, sln_names: &[String], auto_confirm: bool, dry_run: bool) {
-    let title_static: &'static str = Box::leak(Box::new(title.to_string()));
     let solutions: Vec<SolutionInfo> = sln_names
         .iter()
-        .map(|name| {
-            let name_static: &'static str = Box::leak(Box::new(name.clone()));
-            SolutionInfo {
-                name: name_static,
-                entry: || 0 ,
-            }
-        })
+        .map(|name| SolutionInfo::new(name, || 0))
         .collect();
 
-    let mut problem = Problem {
-        id: pid,
-        title: title_static,
-        answer,
-        extra_time_ms: 0,
-        solutions,
-    };
+    let mut problem = Problem::init(pid, title)
+        .with_answer(answer)
+        .with_solutions(solutions);
 
     println!(" {:>12}: {}", "Problem ID", pid.to_string().green());
     println!(" {:>12}: {}", "Title", title.yellow());

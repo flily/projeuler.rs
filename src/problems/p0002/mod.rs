@@ -1,16 +1,9 @@
-use crate::common::{Problem, SolutionInfo};
+use crate::common::Problem;
 
 mod naive;
 
-pub static INFO: std::sync::LazyLock<Problem> = std::sync::LazyLock::new(|| Problem {
-    id: 2,
-    title: "Even Fibonacci Numbers",
-    answer: 4613732,
-    extra_time_ms: 0,
-    solutions: vec![
-        SolutionInfo {
-            name: "naive",
-            entry: naive::solve,
-        },
-    ],
-});
+pub static INFO: std::sync::LazyLock<Problem> = std::sync::LazyLock::new(||
+    Problem::init(2, "Even Fibonacci Numbers")
+        .with_answer(4613732)
+        .solution("naive", naive::solve)
+);

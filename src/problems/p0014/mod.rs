@@ -1,31 +1,15 @@
-use crate::common::{Problem, SolutionInfo};
+use crate::common::Problem;
 
 mod naive;
 mod cache_hashmap;
 mod cache_fxhashmap;
 mod cache_vector;
 
-pub static INFO: std::sync::LazyLock<Problem> = std::sync::LazyLock::new(|| Problem {
-    id: 14,
-    title: "Longest Collatz sequence",
-    answer: 837799,
-    extra_time_ms: 0,
-    solutions: vec![
-        SolutionInfo {
-            name: "naive",
-            entry: naive::solve,
-        },
-        SolutionInfo {
-            name: "with cache (HashMap)",
-            entry: cache_hashmap::solve,
-        },
-        SolutionInfo {
-            name: "with cache (FxHashMap)",
-            entry: cache_fxhashmap::solve,
-        },
-        SolutionInfo {
-            name: "with cache (Vector)",
-            entry: cache_vector::solve,
-        },
-    ],
-});
+pub static INFO: std::sync::LazyLock<Problem> = std::sync::LazyLock::new(||
+    Problem::init(14, "Longest Collatz sequence")
+        .with_answer(837799)
+        .solution("naive", naive::solve)
+        .solution("with cache (HashMap)", cache_hashmap::solve)
+        .solution("with cache (FxHashMap)", cache_fxhashmap::solve)
+        .solution("with cache (Vector)", cache_vector::solve)
+);

@@ -1,4 +1,4 @@
-use crate::common::{Problem, SolutionInfo};
+use crate::common::Problem;
 
 mod common;
 
@@ -10,39 +10,14 @@ mod cache_fxhashset;
 mod cache_vector;
 mod cache_vectorlet;
 
-pub static INFO: std::sync::LazyLock<Problem> = std::sync::LazyLock::new(|| Problem {
-    id: 92,
-    title: "Square digit chains",
-    answer: 8581146,
-    extra_time_ms: 0,
-    solutions: vec![
-        SolutionInfo {
-            name: "naive",
-            entry: naive::solve,
-        },
-        SolutionInfo {
-            name: "with cache (HashSet)",
-            entry: cache_hashset::solve,
-        },
-        SolutionInfo {
-            name: "with cache (FxHashSet)",
-            entry: cache_fxhashset::solve,
-        },
-        // SolutionInfo {
-        //     name: "with cache (AHash)",
-        //     entry: cache_ahash::solve,
-        // },
-        // SolutionInfo {
-        //     name: "with cache (RapidHash)",
-        //     entry: cache_rapidhash::solve,
-        // },
-        SolutionInfo {
-            name: "with cache (Vector)",
-            entry: cache_vector::solve,
-        },
-        SolutionInfo {
-            name: "with cache (reduced Vector)",
-            entry: cache_vectorlet::solve,
-        },
-    ],
-});
+pub static INFO: std::sync::LazyLock<Problem> = std::sync::LazyLock::new(||
+    Problem::init(92, "Square digit chains")
+        .with_answer(8581146)
+        .solution("naive", naive::solve)
+        .solution("with cache (HashSet)", cache_hashset::solve)
+        .solution("with cache (FxHashSet)", cache_fxhashset::solve)
+        // .solution("with cache (AHash)", cache_ahash::solve)
+        // .solution("with cache (RapidHash)", cache_rapidhash::solve)
+        .solution("with cache (Vector)", cache_vector::solve)
+        .solution("with cache (reduced Vector)", cache_vectorlet::solve)
+);

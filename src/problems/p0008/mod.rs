@@ -1,27 +1,13 @@
-use crate::common::{Problem, SolutionInfo};
+use crate::common::Problem;
 
 mod num;
 
 mod naive;
 mod fp;
 
-pub static INFO: std::sync::LazyLock<Problem> = std::sync::LazyLock::new(|| Problem {
-    id: 8,
-    title: "Largest Product in a Series",
-    answer: 23514624000,
-    extra_time_ms: 0,
-    solutions: vec![
-        SolutionInfo {
-            name: "functional programming",
-            entry: fp::solve,
-        },
-        SolutionInfo {
-            name: "naive",
-            entry: naive::solve,
-        },
-        SolutionInfo {
-            name: "functional programming",
-            entry: fp::solve,
-        },
-    ],
-});
+pub static INFO: std::sync::LazyLock<Problem> = std::sync::LazyLock::new(||
+    Problem::init(8, "Largest Product in a Series")
+        .with_answer(23514624000)
+        .solution("naive", naive::solve)
+        .solution("functional programming", fp::solve)
+);
