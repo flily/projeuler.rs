@@ -163,8 +163,12 @@ fn cost_time_color(cost: time::Duration, timeout_ms: u64) -> colored::Color {
 }
 
 fn color_cost_time(cost: time::Duration, color: colored::Color, is_best: bool) -> colored::ColoredString {
-    let s = if cost < time::Duration::from_micros(1) {
-        format!(">>  {:4.3} μs", cost.as_nanos() / 1_000)
+    let s = if cost == time::Duration::from_secs(0) {
+        ">>> 0       ".to_string()
+    } else if cost <= time::Duration::from_nanos(100) {
+        format!(">> {:2}     ns", cost.as_nanos())
+    } else if cost < time::Duration::from_micros(10) {
+        format!(">> {:6.3} μs", cost.as_nanos() as f64 / 1_000.0)
     } else {
         format!("{:8.3} ms", cost.as_nanos() as f64 / 1_000_000.0)
     };
