@@ -1,5 +1,4 @@
 use std::io::{self, BufRead, Write};
-use std::process::Stdio;
 use std::time::{self, Duration};
 
 use clap::{Parser, Subcommand};
@@ -54,8 +53,8 @@ enum Command {
         #[arg(short = 'n', long = "title", default_value = "")]
         title: String,
         /// known answer for the problem
-        #[arg(short = 'a', long = "answer", default_value_t = 0)]
-        answer: i64,
+        #[arg(short = 'a', long = "answer")]
+        answer: Option<i64>,
         /// Accept the action without confirmation. If not set, the tool will show the files to be created and ask for confirmation before creating them.
         #[arg(short = 'y', long = "yes", default_value_t = false)]
         auto_confirm: bool,
@@ -354,8 +353,8 @@ impl RunContext {
             .arg("worker")
             .arg("-p")
             .arg(port.to_string())
-            .stdout(Stdio::null())
-            .stderr(Stdio::null())
+            // .stdout(Stdio::null())
+            // .stderr(Stdio::null())
             .spawn()
             .expect("failed to start worker process");
         Ok(child)
@@ -365,7 +364,7 @@ impl RunContext {
         if let WorkMode::Remote { child, port_base, port, progname, .. } = &mut self.mode {
             child.kill()?;
 
-            let next_port = if *port >= u16::MAX - 1 || *port + 1 - *port_base > 1000 {
+            let next_port = if *port >= u16::MAX - 1 || *port + 1 - *port_base > 3 {
                 *port_base
             } else {
                 *port + 1
@@ -599,19 +598,26 @@ fn print_action(action: &management::FileAction, path: &str) {
     println!("{:>8} {}", action.to_string(), path);
 }
 
-fn do_add(pid: i64, title: &str, answer: i64, sln_names: &[String], auto_confirm: bool, dry_run: bool) {
+fn do_add(pid: i64, title: &str, answer: Option<i64>, sln_names: &[String], auto_confirm: bool, dry_run: bool) {
     let solutions: Vec<SolutionInfo> = sln_names
         .iter()
         .map(|name| SolutionInfo::new(name, || 0))
         .collect();
 
     let mut problem = Problem::init(pid, title)
-        .with_answer(answer)
         .with_solutions(solutions);
+
+    if let Some(ans) = answer {
+        problem = problem.with_answer(ans);
+    }
 
     println!(" {:>12}: {}", "Problem ID", pid.to_string().green());
     println!(" {:>12}: {}", "Title", title.yellow());
-    println!(" {:>12}: {}", "Answer", answer.to_string().magenta());
+    if let Some(ans) = answer {
+        println!(" {:>12}: {}", "Answer", ans.to_string().magenta());
+    } else {
+        println!(" {:>12}: {}", "Answer", "None".yellow());
+    }
     println!(" {:>12}: {}", "Solutions", sln_names.join(", "));
     println!();
 
@@ -727,7 +733,7 @@ fn do_worker(port: u16, pid: i64, solution_id: usize) {
                 let response = match result {
                     Ok(run_result) => {
                         msg.reply(run_result.cost,
-                                  run_result.answer.unwrap(), 
+                                  run_result.got.unwrap(), 
                                   MessageResultFlags::empty())
                     }
                     Err(RunError::ProblemNotFound { problem_id }) => {
