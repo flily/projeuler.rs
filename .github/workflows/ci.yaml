@@ -17,10 +17,8 @@ jobs:
       run: |
         lscpu
         free
-    - name: Code check
-      run: cargo clippy --release --all-targets --all-features -- -D warnings
-    - name: Build
-      run: cargo build --release
+        cargo --version
+        rustc --version
     - uses: actions/cache@v5
       with:
         path: |
@@ -30,6 +28,10 @@ jobs:
           ~/.cargo/git/db/
           target/
         key: ${{ runner.os }}-cargo-${{ hashFiles('**/Cargo.lock') }}
+    - name: Code check
+      run: cargo clippy --release --all-targets --all-features -- -D warnings
+    - name: Build
+      run: cargo build --release
     - name: Run tests
       run: cargo test --release 
     - name: Run result
