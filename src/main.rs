@@ -192,7 +192,7 @@ fn print_problem_result(problem: &common::Problem, problem_result: FinalResult,
         _ => problem_result.color_string(),
     };
     let overhead_cost = problem_cost - solution_cost;
-    let overhead_color = cost_time_color(overhead_cost, total_timeout);
+    let overhead_color = cost_time_color(overhead_cost, timeout_ms);
     let overhead = format!("+~> {:.3} ms", overhead_cost.as_nanos() as f64 / 1_000_000.0).color(overhead_color);
 
     println!(
