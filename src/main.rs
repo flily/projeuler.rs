@@ -184,7 +184,7 @@ fn print_problem_result(problem: &common::Problem, problem_result: FinalResult,
     let total_timeout = (problem.solutions.len() as u64) * (timeout_ms + problem.extra_time_ms);
 
     let pid = problem_result.color_on(&problem.id.to_string());
-    let title = problem_result.color_on(&problem.title);
+    let title = problem_result.color_on(&problem.title).bold();
     let cost_color = cost_time_color(problem_cost, total_timeout);
     let cost = color_cost_time(problem_cost, cost_color, false);
     let result = match problem_result {
