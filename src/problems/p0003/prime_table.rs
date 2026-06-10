@@ -1,11 +1,11 @@
-static NUMBER: i64 = 600851475143;
+const NUMBER: i64 = 600851475143;
 
 struct PrimeTable {
     table: Vec<i64>,
     largest: i64,
 }
 
-static SMALL_PRIMES: [i64; 10] = [3, 5, 7, 11, 13, 17, 19, 23, 29, 31];
+const SMALL_PRIMES: [i64; 10] = [3, 5, 7, 11, 13, 17, 19, 23, 29, 31];
 
 impl PrimeTable {
     fn new(size: usize) -> Self {

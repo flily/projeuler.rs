@@ -1,4 +1,4 @@
-static NUMBER: i64 = 600851475143;
+const NUMBER: i64 = 600851475143;
 
 fn is_prime(n: i64) -> bool {
     if n <= 2 {
