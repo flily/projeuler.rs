@@ -449,6 +449,7 @@ fn do_run(ctx: &mut RunContext, pids: Vec<ProblemSelection>, timeout_ms: u64, ch
     let mut count_problems_succ = 0;
     let mut count_solutions = 0;
     let mut count_solutions_succ = 0;
+    let mut actual_used_time = Duration::from_secs(0);
 
     let start_time = time::Instant::now();
     for problem in problems::all_problems().iter() {
@@ -475,6 +476,7 @@ fn do_run(ctx: &mut RunContext, pids: Vec<ProblemSelection>, timeout_ms: u64, ch
                 ctx.run(sln, sln_timeout_ms).with_check(check_answers)
             };
 
+            actual_used_time += run_result.cost;
             results.push(run_result);
         }
 
@@ -490,7 +492,7 @@ fn do_run(ctx: &mut RunContext, pids: Vec<ProblemSelection>, timeout_ms: u64, ch
         count_problems += 1;
     }
 
-    let elapsed_time = start_time.elapsed().as_nanos() as f64 / 1_000_000.0;
+    let elapsed_time = start_time.elapsed().as_secs_f64();
     println!("{}", sepline);
 
     let succ_rate = if count_problems > 0 {
@@ -515,8 +517,11 @@ fn do_run(ctx: &mut RunContext, pids: Vec<ProblemSelection>, timeout_ms: u64, ch
         "Problems: {}/{} ({}%) , Solutions: {}/{}, Solution timeout: {} ms",
         problem_succ, problem_total, succ_rate, count_solutions_succ, count_solutions, timeout_ms,
     );
-    let time_cost = format!("{:.3} ms", elapsed_time).yellow();
-    println!("Total time: {}", time_cost);
+
+    let time_cost = format!("{:.3} s", actual_used_time.as_secs_f64()).yellow();
+    let total_cost = format!("{:.3} s", elapsed_time).yellow();
+    let overhead_cost = format!("{:.3} s", elapsed_time - actual_used_time.as_secs_f64()).red();
+    println!("Run {} / Total {} (Overhead: {})", time_cost, total_cost, overhead_cost);
 }
 
 fn do_list(pids: Vec<i64>) {
