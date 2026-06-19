@@ -17,5 +17,5 @@ fn nums_sum() -> Integer {
 pub fn solve() -> i64 {
     let sum = nums_sum();
     let result_string = sum.to_string();
-    result_string[..10].parse::<i64>().unwrap()
+    result_string[..10].parse().unwrap()
 }

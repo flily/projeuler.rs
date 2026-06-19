@@ -44,7 +44,7 @@ fn permutation(nums: &[i64], callback: fn(&[i64]) -> Option<i64>) -> Option<i64>
 
 pub fn solve() -> i64 {
     for size in (1..=9).rev() {
-        let digits = (1..=size).map(|x| x as i64).rev().collect::<Vec<i64>>();
+        let digits = (1..=size).rev().collect::<Vec<i64>>();
 
         let r = permutation(&digits, |nums| {
             let mut n = 0;

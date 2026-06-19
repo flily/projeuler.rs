@@ -18,7 +18,7 @@ pub fn load() -> Vec<Vec<i64>> {
     content.lines()
         .map(|line| {
             line.split_whitespace()
-                .map(|num| num.parse::<i64>().unwrap())
+                .map(|num| num.parse().unwrap())
                 .collect::<Vec<i64>>()
         })
         .for_each(|row| result.push(row));

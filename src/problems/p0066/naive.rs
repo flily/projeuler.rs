@@ -7,7 +7,7 @@ use malachite::{
 
 fn to_i64(x: &Integer) -> i64 {
     let sn = x.to_string();
-    sn.parse::<i64>().unwrap()
+    sn.parse().unwrap()
 }
 
 // When D=109, x=158_070_671_986_249, y=15_140_424_455_100

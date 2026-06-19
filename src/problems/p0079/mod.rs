@@ -13,5 +13,5 @@ pub static INFO: std::sync::LazyLock<Problem> = std::sync::LazyLock::new(||
 pub fn load() -> Vec<i64> {
     let raw = Problem::load_data();
     let content = String::from_utf8(raw).unwrap();
-    content.lines().map(|line| line.parse::<i64>().unwrap()).collect()
+    content.lines().map(|line| line.parse().unwrap()).collect()
 }

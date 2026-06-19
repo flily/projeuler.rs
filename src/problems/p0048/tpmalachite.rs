@@ -13,5 +13,5 @@ pub fn solve() -> i64 {
     }
 
     let result = sum % Integer::from(MODULO);
-    result.to_string().parse::<i64>().unwrap()
+    result.to_string().parse().unwrap()
 }

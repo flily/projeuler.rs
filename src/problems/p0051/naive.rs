@@ -39,7 +39,7 @@ fn get_family_members(family: &str) -> Vec<i64> {
             continue;
         }
 
-        result.push(s.parse::<i64>().unwrap());
+        result.push(s.parse().unwrap());
     }
 
     result

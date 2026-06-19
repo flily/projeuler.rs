@@ -29,7 +29,7 @@ pub struct SelectionInfo {
 impl SelectionInfo {
     pub fn from<T: AsRef<str>>(s: T) -> Self {
         let s = s.as_ref().trim().to_lowercase();
-        if let Ok(num) = s.parse::<i64>() {
+        if let Ok(num) = s.parse() {
             SelectionInfo {
                 name: s.to_string(),
                 num: Some(num),
@@ -94,7 +94,7 @@ fn parse_string_info(s: &[char], start: usize) -> (String, usize) {
     while i < s.len() && s[i].is_alphanumeric() {
         i += 1;
     }
-    let info = s[start..i].iter().collect::<String>();
+    let info = s[start..i].iter().collect();
     (info, i)
 }
 

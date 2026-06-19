@@ -196,7 +196,7 @@ fn print_problem_result(problem: &common::Problem, problem_result: FinalResult,
     let overhead = format!("+~> {:.3} ms", overhead_cost.as_nanos() as f64 / 1_000_000.0).color(overhead_color);
 
     println!(
-        "| {:>4} | {:<40} | {:^14} | {:^9} | {:>12} | {}",
+        "| {:>4} | {:<40} | {:^30} | {:^9} | {:>12} | {}",
         pid, title, "", result, cost, overhead,
     );
 }
@@ -238,7 +238,7 @@ fn print_solution_result(pid: &str, title: &str, run_result: &RunResult, timeout
     };
 
     println!(
-        "| {:>4} | {:<40} | {:^14} | {:^9} | {:>12} |{}",
+        "| {:>4} | {:<40} | {:^30} | {:^9} | {:>12} |{}",
         pid_text, title_text, answer, result, cost, extra_timeout,
     );
 }
@@ -293,7 +293,7 @@ fn print_result(
         return c;
     }
 
-    let solution_cost = results.iter().map(|r| r.cost).sum::<time::Duration>();
+    let solution_cost = results.iter().map(|r| r.cost).sum();
     print_problem_result(problem, problem_result, timeout_ms, problem_cost, solution_cost);
 
     let raw_pid = "".to_string();
@@ -433,14 +433,14 @@ fn do_run(ctx: &mut RunContext, pids: Vec<ProblemSelection>, timeout_ms: u64, ch
         + &"-".repeat(4 + 2) + "+"      // PID
         + &"-".repeat(40 + 2) + "+"     // Title
         // + &"-".repeat(40 + 2) + "+"     // Solution
-        + &"-".repeat(14 + 2) + "+"     // Answer
+        + &"-".repeat(30 + 2) + "+"     // Answer
         + &"-".repeat(9 + 2) + "+"      // Result
         + &"-".repeat(12 + 2) + "+"     // Time 12345.678 ms
     ;
 
     println!("{}", sepline);
     println!(
-        "| {:>4} | {:<40} | {:^14} | {:^9} | {:>12} |",
+        "| {:>4} | {:<40} | {:^30} | {:^9} | {:>12} |",
         "PID", "Title / Solution", "Answer", "Result", "Time",
     );
     println!("{}", sepline);
@@ -457,7 +457,7 @@ fn do_run(ctx: &mut RunContext, pids: Vec<ProblemSelection>, timeout_ms: u64, ch
             continue;
         }
 
-        let mut results = Vec::<RunResult>::new();
+        let mut results = Vec::new();
         let problem_time_start = time::Instant::now();
         for sln in problem.make_solution_items().iter() {
             let flag = pids

@@ -52,7 +52,7 @@ static PROBLEM_INDEX_REGEX_INFO: &str = r"^\s+&p(\d+)::INFO,$";
 
 impl ProblemIndex {
     fn load(filename: &str) -> Result<Self, io::Error> {
-        let mut id_list = Vec::<i64>::new();
+        let mut id_list = Vec::new();
         let file = fs::File::open(filename)?;
         let reader = io::BufReader::new(file);
 
@@ -83,7 +83,7 @@ impl ProblemIndex {
     fn write(&mut self, filename: &str) -> Result<(), io::Error> {
         self.id_list.sort();
 
-        let mut lines = Vec::<String>::with_capacity(2 * self.id_list.len() + 8);
+        let mut lines = Vec::with_capacity(2 * self.id_list.len() + 8);
         for id in &self.id_list {
             lines.push(format!("pub mod p{:04};", id));
         }
@@ -176,7 +176,7 @@ impl ProblemManagement for Problem {
     fn create_problem_mod(&self) -> Result<(), io::Error> {
         let problem_mod_filename = self.mod_filename();
 
-        let mut lines = Vec::<String>::new();
+        let mut lines = Vec::new();
         lines.push("use crate::common::Problem;".to_string());
         lines.push("".to_string());
 
