@@ -11,15 +11,15 @@ fn get_digits(num: i64) -> Vec<i64> {
 }
 
 fn update_relation(relations: &mut [(Vec<i64>, Vec<i64>)], a: i64, b: i64) {
-    // b > a
-    let (_, a_greater) = &mut relations[a as usize];
-    if !a_greater.contains(&b) {
-        a_greater.push(b);
+    // b after a
+    let (_, a_next) = &mut relations[a as usize];
+    if !a_next.contains(&b) {
+        a_next.push(b);
     }
 
-    let (b_less, _) = &mut relations[b as usize];
-    if !b_less.contains(&a) {
-        b_less.push(a);
+    let (b_prev, _) = &mut relations[b as usize];
+    if !b_prev.contains(&a) {
+        b_prev.push(a);
     }
 }
 
@@ -39,14 +39,15 @@ pub fn solve() -> i64 {
     }
 
     let mut digits = Vec::new();
-    for (i, (less, greater)) in relations.iter().enumerate() {
-        if less.is_empty() && greater.is_empty() {
+    for (n, (prev, next)) in relations.iter().enumerate() {
+        if prev.is_empty() && next.is_empty() {
             continue;
         }
 
-        digits.push((i as i64, greater.len() as i64));
+        digits.push((n as i64, next.len() as i64));
     }
     digits.sort_by_key(|&(_, count)| count);
+
     let mut result = 0;
     for (digit, _) in digits {
         result = result * 10 + digit;

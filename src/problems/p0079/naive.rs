@@ -18,14 +18,15 @@ pub fn solve() -> i64 {
     let attempts = load();
     
     for code in 100_000..100_000_000 {
-        let mut success = 0;
+        let mut success = true;
         for attempt in &attempts {
-            if check_success(code, *attempt) {
-                success += 1;
+            if !check_success(code, *attempt) {
+                success = false;
+                break;
             }
         }
 
-        if success == attempts.len() {
+        if success {
             return code;
         }
     }
