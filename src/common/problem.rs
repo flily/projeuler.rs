@@ -53,6 +53,11 @@ impl Problem {
         self
     }
 
+    pub fn extra_timeout_ms(mut self, ms: u64) -> Self {
+        self.extra_time_ms = ms;
+        self
+    }
+
     pub fn solution(mut self, name: &str, entry: Solution) -> Self {
         self.solutions.push(SolutionInfo {
             name: name.to_string(),
