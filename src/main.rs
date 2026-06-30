@@ -1,4 +1,5 @@
 use std::io::{self, BufRead, Write};
+use std::process;
 use std::time::{self, Duration};
 
 use clap::{Parser, Subcommand};
@@ -428,7 +429,7 @@ impl RunContext {
     }
 }
 
-fn do_run(ctx: &mut RunContext, pids: Vec<ProblemSelection>, timeout_ms: u64, check_answers: bool) {
+fn do_run(ctx: &mut RunContext, pids: Vec<ProblemSelection>, timeout_ms: u64, check_answers: bool) -> i32{
     let sepline = "+".to_string()
         + &"-".repeat(4 + 2) + "+"      // PID
         + &"-".repeat(40 + 2) + "+"     // Title
@@ -522,6 +523,7 @@ fn do_run(ctx: &mut RunContext, pids: Vec<ProblemSelection>, timeout_ms: u64, ch
     let total_cost = format!("{:.3} s", elapsed_time).yellow();
     let overhead_cost = format!("{:.3} s", elapsed_time - actual_used_time.as_secs_f64()).red();
     println!("Run {} / Total {} (Overhead: {})", time_cost, total_cost, overhead_cost);
+    count_problems - count_problems_succ
 }
 
 fn do_list(pids: Vec<i64>) {
@@ -793,9 +795,10 @@ fn do_client(port: u16, pid: i64, sid: i64) {
     }
 }
 
-fn main() {
+fn main() -> process::ExitCode {
     let args = Args::parse();
 
+    let mut rc = process::ExitCode::SUCCESS;
     match args.command {
         Command::Run {
             pids,
@@ -813,7 +816,7 @@ fn main() {
                     Ok(ms) => ms,
                     Err(e) => {
                         eprintln!("invalid timeout '{}': {}", timeout_str, e);
-                        return;
+                        return process::ExitCode::FAILURE;
                     }
                 }
             };
@@ -828,7 +831,7 @@ fn main() {
                     Ok(sel) => solution_selection.push(sel),
                     Err(e) => {
                         println!("invalid problem selection '{}':\n{}", pid_str, e);
-                        return;
+                        return process::ExitCode::FAILURE;
                     }
                 }
             }
@@ -843,8 +846,9 @@ fn main() {
                 RunContext::remote(progname.to_str().unwrap().to_string(), port).expect("")
             };
 
-            do_run(&mut ctx, solution_selection, timeout_ms, check_answers);
+            let r = do_run(&mut ctx, solution_selection, timeout_ms, check_answers);
             ctx.shutdown();
+            rc = process::ExitCode::from(r as u8)
         }
 
         Command::List { pids } => do_list(pids),
@@ -884,4 +888,6 @@ fn main() {
             do_client(port, pid, sid);
         }
     }
+
+    rc
 }
