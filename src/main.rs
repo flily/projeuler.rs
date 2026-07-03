@@ -1,3 +1,6 @@
+mod framework;
+mod problems;
+
 use std::io::{self, BufRead, Write};
 use std::process;
 use std::time::{self, Duration};
@@ -6,16 +9,23 @@ use clap::{Parser, Subcommand};
 use colored::{Color, Colorize};
 use tokio::{time::timeout, runtime};
 
-use crate::common::{Problem, SolutionInfo, SolutionItem};
-use crate::common::launcher::{ProblemSelection, parse_duration};
-use crate::worker::message::{MessageResult, ParsedMessage, MessageResultFlags};
-use crate::worker::{FinalResult, RunError, RunResult, Worker, messenger};
-use management::ProblemManagement;
+use crate::framework::{
+    FinalResult,
+    RunError,
+    Problem,
+    SolutionInfo,
+    SolutionItem,
+    RunResult,
+    Worker,
+    Messenger,
+    MessengerListener,
+};
 
-mod common;
-mod problems;
-mod management;
-mod worker;
+use crate::framework::management;
+use crate::framework::management::ProblemManagement;
+
+use crate::framework::launcher::{ProblemSelection, parse_duration};
+use crate::framework::message::{MessageResult, ParsedMessage, MessageResultFlags};
 
 const DEFAULT_TIMEOUT_MS: u64 = 500;
 
@@ -180,7 +190,7 @@ fn color_cost_time(cost: time::Duration, color: colored::Color, is_best: bool) -
     }
 }
 
-fn print_problem_result(problem: &common::Problem, problem_result: FinalResult,
+fn print_problem_result(problem: &Problem, problem_result: FinalResult,
     timeout_ms: u64, problem_cost: time::Duration, solution_cost: time::Duration) {
     let total_timeout = (problem.solutions.len() as u64) * (timeout_ms + problem.extra_time_ms);
 
@@ -273,7 +283,7 @@ fn make_problem_result(result_list: &[RunResult]) -> (FinalResult, i32) {
 }
 
 fn print_result(
-    problem: &common::Problem,
+    problem: &Problem,
     results: &[RunResult],
     timeout_ms: u64,
     problem_cost: time::Duration,
@@ -314,7 +324,7 @@ enum WorkMode {
         rt: runtime::Runtime
     },
     Remote {
-        client: messenger::Messenger,
+        client: Messenger,
         child: std::process::Child,
         port_base: u16,
         port: u16,
@@ -342,7 +352,7 @@ impl RunContext {
         let child = RunContext::launch_worker(&progname, port)?;
         std::thread::sleep(time::Duration::from_millis(10));
 
-        let client = messenger::Messenger::connect(port)?;
+        let client = Messenger::connect(port)?;
         let port_base = port;
         Ok(Self {
             mode: WorkMode::Remote { client, child, port_base, port, progname },
@@ -372,7 +382,7 @@ impl RunContext {
             };
             let child = Self::launch_worker(progname, next_port)?;
             std::thread::sleep(time::Duration::from_millis(10));
-            let client = messenger::Messenger::connect(next_port)?;
+            let client = Messenger::connect(next_port)?;
             self.mode = WorkMode::Remote {
                 client,
                 child,
@@ -709,7 +719,7 @@ fn worker_test(worker: &Worker, pid: i64, solution_id: usize) {
 }
 
 fn do_worker(port: u16, pid: i64, solution_id: usize) {
-    let listener = messenger::MessengerListener::listen(port);
+    let listener = MessengerListener::listen(port);
     if listener.is_err() {
         println!("failed to start worker listener on port {}: {:?}", port, listener.err().unwrap());
         return;
@@ -769,7 +779,7 @@ fn do_worker(port: u16, pid: i64, solution_id: usize) {
 }
 
 fn do_client(port: u16, pid: i64, sid: i64) {
-    let m = messenger::Messenger::connect(port);
+    let m = Messenger::connect(port);
     if m.is_err() {
         println!("failed to connect to {}: {:?}", port, m.err().unwrap());
         return;

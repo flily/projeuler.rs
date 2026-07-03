@@ -2,11 +2,13 @@ use std::io::{Read, Write};
 use std::net::{TcpListener, TcpStream};
 use std::time::Duration;
 
-use crate::common::SolutionItem;
-use crate::worker::message::{MessageError, ParsedMessage};
+use crate::framework::message::{MessageError, ParsedMessage};
 
-use super::message;
-use super::result;
+use crate::framework::{
+    SolutionItem,
+    message,
+    result,
+};
 
 pub struct MessengerListener {
     listener: TcpListener,

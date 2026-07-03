@@ -77,7 +77,7 @@ pub mod p0092;
 pub mod p0097;
 pub mod p0099;
 
-use crate::common::Problem;
+use crate::framework::Problem;
 
 pub fn all_problems() -> Vec<&'static Problem> {
     vec![
