@@ -2,12 +2,14 @@ use std::io::{Read, Write};
 use std::net::{TcpListener, TcpStream};
 use std::time::Duration;
 
-use crate::framework::message::{MessageError, ParsedMessage};
-
 use crate::framework::{
     SolutionItem,
+    RunError,
     message,
-    result,
+    message::{
+        MessageError,
+        ParsedMessage,
+    },
 };
 
 pub struct MessengerListener {
@@ -96,14 +98,14 @@ impl Messenger {
         }
     }
 
-    pub fn run_solution(&mut self, solution: &SolutionItem, timeout: Option<Duration>) -> Result<(i64, Duration), result::RunError> {
+    pub fn run_solution(&mut self, solution: &SolutionItem, timeout: Option<Duration>) -> Result<(i64, Duration), RunError> {
         self.run(solution.id, solution.index as usize, timeout)
     }
 
-    pub fn run(&mut self, problem_id: i64, solution_id: usize, timeout: Option<Duration>) -> Result<(i64, Duration), result::RunError> {
+    pub fn run(&mut self, problem_id: i64, solution_id: usize, timeout: Option<Duration>) -> Result<(i64, Duration), RunError> {
         let msg = message::MessageRun::request(problem_id as i32, solution_id as i32);
         self.send(&msg)
-            .map_err(|e| result::RunError::NetworkError { source: e })?;
+            .map_err(|e| RunError::NetworkError { source: e })?;
 
         let extra_timeout = timeout.map(|t| t + Duration::from_millis(10));
         self.set_recv_timeout(extra_timeout);
@@ -112,11 +114,11 @@ impl Messenger {
             .map_err(|e| {
                 match e {
                     MessageError::ReadTimeout =>
-                        result::RunError::Timeout,
+                        RunError::Timeout,
                     MessageError::IOError { source } => 
-                        result::RunError::NetworkError { source },
+                        RunError::NetworkError { source },
                     e =>
-                        result::RunError::ProtocolMessageError { source: e },
+                        RunError::ProtocolMessageError { source: e },
                 }
             })?;
         match reply {
@@ -126,16 +128,16 @@ impl Messenger {
                 } else {
                     if result.flags.is_not_found() {
                         if result.solutions_id < 0 {
-                            Err(result::RunError::ProblemNotFound { problem_id })
+                            Err(RunError::ProblemNotFound { problem_id })
                         } else {
-                            Err(result::RunError::SolutionNotFound { problem_id, solution_id })
+                            Err(RunError::SolutionNotFound { problem_id, solution_id })
                         }
                     } else {
-                        Err(result::RunError::NetworkError { source: std::io::Error::other( "Invalid magic number") })
+                        Err(RunError::NetworkError { source: std::io::Error::other( "Invalid magic number") })
                     }
                 }
             },
-            _ => Err(result::RunError::ProtocolMessageError {
+            _ => Err(RunError::ProtocolMessageError {
                 source: MessageError::WrongReplyType {
                     got: match reply {
                         ParsedMessage::Ping(_) => message::MessageType::Ping,

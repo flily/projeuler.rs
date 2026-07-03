@@ -1,6 +1,10 @@
 use std::time;
 
-use crate::framework::{Problem, RunResult, RunError};
+use crate::framework::{
+    Problem,
+    RunResult,
+    RunError,
+};
 
 
 pub struct Worker {

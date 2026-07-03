@@ -1,29 +1,14 @@
-pub mod message;
+pub mod management;
+pub mod launcher;
+pub mod worker;
 
-pub mod result;
-pub use result::{
+pub mod base;
+pub use base::{
     FinalResult,
     RunError,
     RunResult,
-};
-
-pub mod worker;
-pub use worker::{
-    Worker,
-    Messenger,
-    MessengerListener,
-};
-
-pub mod problem;
-pub use problem::{
     Problem,
     SolutionInfo,
     SolutionItem,
+    message,
 };
-
-pub mod management;
-pub use management::{
-    ProblemManagement,
-};
-
-pub mod launcher;

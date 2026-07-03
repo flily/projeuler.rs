@@ -50,7 +50,7 @@ struct ProblemIndex {
     id_list: Vec<i64>,
 }
 
-static PROBLEM_INDEX_REGEX_IMPORT: &str = r"^pub mod p(\d+);$";
+static PROBLEM_INDEX_REGEX_IMPORT: &str = r"^mod p(\d+);$";
 static PROBLEM_INDEX_REGEX_INFO: &str = r"^\s+&p(\d+)::INFO,$";
 
 impl ProblemIndex {
@@ -88,7 +88,7 @@ impl ProblemIndex {
 
         let mut lines = Vec::with_capacity(2 * self.id_list.len() + 8);
         for id in &self.id_list {
-            lines.push(format!("pub mod p{:04};", id));
+            lines.push(format!("mod p{:04};", id));
         }
 
         lines.push(String::from(""));
@@ -381,7 +381,7 @@ mod tests {
     #[test]
     fn test_regex_import_success() {
         let regex_import = Regex::new(PROBLEM_INDEX_REGEX_IMPORT).unwrap();
-        let line = "pub mod p1234;";
+        let line = "mod p1234;";
         assert!(regex_import.is_match(line));
 
         let captures = regex_import.captures(line).unwrap();
@@ -408,7 +408,7 @@ mod tests {
     #[test]
     fn test_regex_info_failure() {
         let regex_info = Regex::new(PROBLEM_INDEX_REGEX_INFO).unwrap();
-        let line = "pub mod p1234;";
+        let line = "mod p1234;";
         assert!(!regex_info.is_match(line));
     }
 }

@@ -1,31 +1,42 @@
-mod framework;
-mod problems;
-
-use std::io::{self, BufRead, Write};
-use std::process;
-use std::time::{self, Duration};
+use std::{
+    io::{
+        self,
+        BufRead,
+        Write,
+    },
+    time::{
+        self,
+        Duration,
+    },
+    process,
+};
 
 use clap::{Parser, Subcommand};
 use colored::{Color, Colorize};
 use tokio::{time::timeout, runtime};
 
-use crate::framework::{
+mod framework;
+use framework::{
     FinalResult,
     RunError,
     Problem,
     SolutionInfo,
     SolutionItem,
     RunResult,
-    Worker,
-    Messenger,
-    MessengerListener,
+    worker,
+    launcher,
+    message::{
+        MessageResult,
+        ParsedMessage,
+        MessageResultFlags,
+    },
+    management::{
+        FileAction,
+        ProblemManagement,
+    },
 };
 
-use crate::framework::management;
-use crate::framework::management::ProblemManagement;
-
-use crate::framework::launcher::{ProblemSelection, parse_duration};
-use crate::framework::message::{MessageResult, ParsedMessage, MessageResultFlags};
+mod problems;
 
 const DEFAULT_TIMEOUT_MS: u64 = 500;
 
@@ -324,7 +335,7 @@ enum WorkMode {
         rt: runtime::Runtime
     },
     Remote {
-        client: Messenger,
+        client: worker::Messenger,
         child: std::process::Child,
         port_base: u16,
         port: u16,
@@ -352,7 +363,7 @@ impl RunContext {
         let child = RunContext::launch_worker(&progname, port)?;
         std::thread::sleep(time::Duration::from_millis(10));
 
-        let client = Messenger::connect(port)?;
+        let client = worker::Messenger::connect(port)?;
         let port_base = port;
         Ok(Self {
             mode: WorkMode::Remote { client, child, port_base, port, progname },
@@ -382,7 +393,7 @@ impl RunContext {
             };
             let child = Self::launch_worker(progname, next_port)?;
             std::thread::sleep(time::Duration::from_millis(10));
-            let client = Messenger::connect(next_port)?;
+            let client = worker::Messenger::connect(next_port)?;
             self.mode = WorkMode::Remote {
                 client,
                 child,
@@ -439,7 +450,7 @@ impl RunContext {
     }
 }
 
-fn do_run(ctx: &mut RunContext, pids: Vec<ProblemSelection>, timeout_ms: u64, check_answers: bool) -> i32{
+fn do_run(ctx: &mut RunContext, pids: Vec<launcher::ProblemSelection>, timeout_ms: u64, check_answers: bool) -> i32{
     let sepline = "+".to_string()
         + &"-".repeat(4 + 2) + "+"      // PID
         + &"-".repeat(40 + 2) + "+"     // Title
@@ -611,7 +622,7 @@ fn action_confirm(action: &str, accept_word: &str) -> bool {
     result
 }
 
-fn print_action(action: &management::FileAction, path: &str) {
+fn print_action(action: &FileAction, path: &str) {
     println!("{:>8} {}", action.to_string(), path);
 }
 
@@ -649,7 +660,7 @@ fn do_add(pid: i64, title: &str, answer: Option<i64>, sln_names: &[String], auto
         return;
     }
 
-    let callback = |action: &management::FileAction, path: &str| {
+    let callback = |action: &FileAction, path: &str| {
         println!("{:>8} {}", action.finish_string(), path);
     };
     let action_result = problem.do_add_actions(Some(callback), false);
@@ -685,7 +696,7 @@ fn do_delete(pids: Vec<i64>, full_delete: bool) {
         return;
     }
 
-    let callback = |action: &management::FileAction, path: &str| {
+    let callback = |action: &FileAction, path: &str| {
         println!("{:>8} {}", action.finish_string(), path);
     };
 
@@ -707,7 +718,7 @@ fn do_delete(pids: Vec<i64>, full_delete: bool) {
     }
 }
 
-fn worker_test(worker: &Worker, pid: i64, solution_id: usize) {
+fn worker_test(worker: &worker::Worker, pid: i64, solution_id: usize) {
     let result = worker.run(pid, solution_id);
     if result.is_err() {
         println!("run_solution error: {:?}", result.err().unwrap());
@@ -719,14 +730,14 @@ fn worker_test(worker: &Worker, pid: i64, solution_id: usize) {
 }
 
 fn do_worker(port: u16, pid: i64, solution_id: usize) {
-    let listener = MessengerListener::listen(port);
+    let listener = worker::MessengerListener::listen(port);
     if listener.is_err() {
         println!("failed to start worker listener on port {}: {:?}", port, listener.err().unwrap());
         return;
     }
     let listener = listener.unwrap();
 
-    let worker = Worker::on_static(problems::all_problems());
+    let worker = worker::Worker::on_static(problems::all_problems());
 
     if pid > 0 {
         worker_test(&worker, pid, solution_id);
@@ -779,7 +790,7 @@ fn do_worker(port: u16, pid: i64, solution_id: usize) {
 }
 
 fn do_client(port: u16, pid: i64, sid: i64) {
-    let m = Messenger::connect(port);
+    let m = worker::Messenger::connect(port);
     if m.is_err() {
         println!("failed to connect to {}: {:?}", port, m.err().unwrap());
         return;
@@ -822,7 +833,7 @@ fn main() -> process::ExitCode {
             let timeout_ms = if no_timeout {
                 0
             } else {
-                match parse_duration(&timeout_str) {
+                match launcher::parse_duration(&timeout_str) {
                     Ok(ms) => ms,
                     Err(e) => {
                         eprintln!("invalid timeout '{}': {}", timeout_str, e);
@@ -836,7 +847,7 @@ fn main() -> process::ExitCode {
 
             let mut solution_selection = Vec::new();
             for pid_str in pids {
-                let sel = ProblemSelection::parse(&pid_str);
+                let sel = launcher::ProblemSelection::parse(&pid_str);
                 match sel {
                     Ok(sel) => solution_selection.push(sel),
                     Err(e) => {

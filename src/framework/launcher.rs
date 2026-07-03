@@ -1,4 +1,7 @@
-use super::problem::{Problem, SolutionItem};
+use crate::framework::{
+    Problem,
+    SolutionItem,
+};
 
 pub fn parse_duration(s: &str) -> Result<u64, String> {
     let s = s.trim();
@@ -241,8 +244,9 @@ impl ProblemSelection {
 
 #[cfg(test)]
 mod tests {
+    use crate::framework::{Problem, SolutionInfo};
+
     use super::*;
-    use super::super::problem::{Problem, SolutionInfo};
 
     #[test]
     fn test_parse_duration() {
