@@ -1,4 +1,4 @@
-use crate::common::Problem;
+use crate::framework::Problem;
 
 mod modulo;
 mod tpnumbigint;

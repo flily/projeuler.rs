@@ -3,7 +3,7 @@ use std::time;
 use std::panic::Location;
 use std::path::Path;
 
-use crate::worker::RunResult;
+use crate::framework::RunResult;
 
 pub type Solution = fn() -> i64;
 
