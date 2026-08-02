@@ -78,6 +78,7 @@ mod p0077;
 mod p0078;
 mod p0079;
 mod p0080;
+mod p0085;
 mod p0092;
 mod p0097;
 mod p0099;
@@ -166,6 +167,7 @@ pub fn all_problems() -> Vec<&'static Problem> {
         &p0078::INFO,
         &p0079::INFO,
         &p0080::INFO,
+        &p0085::INFO,
         &p0092::INFO,
         &p0097::INFO,
         &p0099::INFO,
