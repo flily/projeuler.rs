@@ -1,4 +1,4 @@
-fn update_cell(matrix: &Vec<Vec<i64>>,  path: &mut Vec<Vec<Option<i64>>>, position: (usize, usize)) {
+fn update_cell(matrix: &[Vec<i64>],  path: &mut [Vec<Option<i64>>], position: (usize, usize)) {
     let (row, col) = position;
     let height = matrix.len();
 
@@ -9,28 +9,22 @@ fn update_cell(matrix: &Vec<Vec<i64>>,  path: &mut Vec<Vec<Option<i64>>>, positi
         neighbours.push(current);
     }
 
-    if row > 0 {
-        if let Some(upper) = path[row - 1][col] {
-            neighbours.push(current + upper);
-        }
+    if row > 0 && let Some(upper) = path[row - 1][col] {
+        neighbours.push(current + upper);
     }
 
-    if row < height - 1 {
-        if let Some(lower) = path[row + 1][col] {
-            neighbours.push(current + lower);
-        }
+    if row < height - 1 && let Some(lower) = path[row + 1][col] {
+        neighbours.push(current + lower);
     }
 
-    if col > 0 {
-        if let Some(left) = path[row][col - 1] {
-            neighbours.push(current + left);
-        }
+    if col > 0 && let Some(left) = path[row][col - 1] {
+        neighbours.push(current + left);
     }
 
     path[row][col] = neighbours.into_iter().min();
 }
 
-fn search(matrix: &Vec<Vec<i64>>, size: (usize, usize)) -> i64 {
+fn search(matrix: &[Vec<i64>], size: (usize, usize)) -> i64 {
     let (width, height) = size;
 
     let mut path = vec![vec![None; width]; height];

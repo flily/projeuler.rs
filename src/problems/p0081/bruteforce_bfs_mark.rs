@@ -1,6 +1,6 @@
 use std::collections::VecDeque;
 
-fn update_cell(matrix: &Vec<Vec<i64>>, path: &mut Vec<Vec<i64>>, position: (usize, usize)) {
+fn update_cell(matrix: &[Vec<i64>], path: &mut [Vec<i64>], position: (usize, usize)) {
     let (row, col) = position;
 
     let current = matrix[row][col];
@@ -25,7 +25,7 @@ fn update_cell(matrix: &Vec<Vec<i64>>, path: &mut Vec<Vec<i64>>, position: (usiz
     }
 }
 
-fn search(matrix: &Vec<Vec<i64>>, size: (usize, usize)) -> i64 {
+fn search(matrix: &[Vec<i64>], size: (usize, usize)) -> i64 {
     let (width, height) = size;
 
     let mut path = vec![vec![0; width]; height];
@@ -37,12 +37,7 @@ fn search(matrix: &Vec<Vec<i64>>, size: (usize, usize)) -> i64 {
     let mut stack_count = vec![vec![0; width]; height];
     stack_count[0][0] = 1;
 
-    loop {
-        let (x, y) = match queue.pop_front() {
-            Some(pos) => pos,
-            None => break,
-        };
-
+    while let Some((x, y)) = queue.pop_front() {
         update_cell(matrix, &mut path, (y, x));
         stack_count[x][y] -= 1;
 

@@ -1,4 +1,4 @@
-fn update_cell(matrix: &Vec<Vec<i64>>, path: &mut Vec<Vec<i64>>, position: (usize, usize)) {
+fn update_cell(matrix: &[Vec<i64>], path: &mut [Vec<i64>], position: (usize, usize)) {
     let (row, col) = position;
 
     let current = matrix[row][col];
@@ -23,7 +23,7 @@ fn update_cell(matrix: &Vec<Vec<i64>>, path: &mut Vec<Vec<i64>>, position: (usiz
     }
 }
 
-fn search(matrix: &Vec<Vec<i64>>, size: (usize, usize)) -> i64 {
+fn search(matrix: &[Vec<i64>], size: (usize, usize)) -> i64 {
     let (width, height) = size;
 
     let mut path = vec![vec![0; width]; height];

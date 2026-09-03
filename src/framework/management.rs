@@ -196,10 +196,11 @@ impl ProblemManagement for Problem {
         }
 
         let mut info = vec![
-            format!(""),
-            format!("pub static INFO: std::sync::LazyLock<Problem> = std::sync::LazyLock::new(||"),
-            format!("    Problem::init({}, \"{}\")", self.id, self.title),
+            "".to_string(),
+            "pub static INFO: std::sync::LazyLock<Problem> = std::sync::LazyLock::new(||".to_string(),
         ];
+
+        info.push(format!("    Problem::init({}, \"{}\")", self.id, self.title));
 
         if let Some(answer) = self.answer {
             info.push(format!("        .with_answer({})", answer));
