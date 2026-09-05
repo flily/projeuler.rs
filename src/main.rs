@@ -546,7 +546,7 @@ fn do_run(ctx: &mut RunContext, pids: Vec<launcher::ProblemSelection>, timeout_m
     let problem_total = count_problems.to_string().blue();
 
     println!(
-        "Problems: {}/{} ({}%) , Solutions: {}/{}, Solution timeout: {} ms",
+        "Problems: {}/{} ({}%), Solutions: {}/{}, Solution timeout: {} ms",
         problem_succ, problem_total, succ_rate, count_solutions_succ, count_solutions, timeout_ms,
     );
 
