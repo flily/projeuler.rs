@@ -232,11 +232,11 @@ fn print_solution_result(pid: Option<i64>, title: &str, run_result: &RunResult, 
 
     let title_text = match (is_best, pid) {
         // one-solution problem, correct
-        (true, Some(_)) => format!("{}", title).on_color(result_colour).bold(),
+        (true, Some(_)) => title.to_string().on_color(result_colour).bold(),
         // multi-solution problem, correct
         (true, None) => format!("* {}", title).on_color(result_colour).bold(),
         // one-solution problem, incorrect
-        (false, Some(_)) => format!("{}", title).color(result_colour),
+        (false, Some(_)) => title.to_string().color(result_colour),
         // multi-solution problem, not the best
         (false, None) => format!("+ {}", title).color(result_colour),
     };
