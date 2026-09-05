@@ -223,13 +223,22 @@ fn print_problem_result(problem: &Problem, problem_result: FinalResult,
     );
 }
 
-fn print_solution_result(pid: &str, title: &str, run_result: &RunResult, timeout_ms: u64, is_best: bool) {
+fn print_solution_result(pid: Option<i64>, title: &str, run_result: &RunResult, timeout_ms: u64, is_best: bool) {
     let result_colour = run_result.result.color();
-    let pid_text = pid.color(result_colour).bold();
-    let title_text = if is_best {
-        format!("* {}", title).on_color(result_colour).bold()
-    } else {
-        format!("+ {}", title).color(result_colour)
+    let pid_text = match pid {
+        None => "".to_string(),
+        Some(id) => id.to_string(),
+    }.color(result_colour).bold();
+
+    let title_text = match (is_best, pid) {
+        // one-solution problem, correct
+        (true, Some(_)) => format!("{}", title).on_color(result_colour).bold(),
+        // multi-solution problem, correct
+        (true, None) => format!("* {}", title).on_color(result_colour).bold(),
+        // one-solution problem, incorrect
+        (false, Some(_)) => format!("{}", title).color(result_colour),
+        // multi-solution problem, not the best
+        (false, None) => format!("+ {}", title).color(result_colour),
     };
     let answer = if let Some(got) = run_result.got {
         got.to_string().color(result_colour)
@@ -303,9 +312,9 @@ fn print_result(
 
     if results.len() == 1 {
         let sln = &results[0];
-        let pid = problem.id.to_string();
+        let pid = problem.id;
         let title = problem.title.to_string();
-        print_solution_result(&pid, &title, sln, timeout_ms, best_index == 0);
+        print_solution_result(Some(pid), &title, sln, timeout_ms, best_index == 0);
 
         let c = match sln.result {
             FinalResult::Correct => (1, 1),
@@ -318,13 +327,14 @@ fn print_result(
     let solution_cost = results.iter().map(|r| r.cost).sum();
     print_problem_result(problem, problem_result, timeout_ms, problem_cost, solution_cost);
 
-    let raw_pid = "".to_string();
     let mut correct_count = 0;
     for (i, sln) in results.iter().enumerate() {
         if let FinalResult::Correct = sln.result {
             correct_count += 1;
         }
-        print_solution_result(&raw_pid, &sln.solution, sln, timeout_ms, best_index == (i as i32));
+
+        let is_best = best_index == (i as i32);
+        print_solution_result(None, &sln.solution, sln, timeout_ms, is_best);
     }
 
     (correct_count, results.len() as i32)
