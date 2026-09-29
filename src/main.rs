@@ -72,7 +72,7 @@ enum Command {
     #[command(visible_aliases = ["a", "n", "new"])]
     Add {
         /// optional problem title
-        #[arg(short = 'n', long = "title", default_value = "")]
+        #[arg(short = 't', long = "title", default_value = "")]
         title: String,
         /// known answer for the problem
         #[arg(short = 'a', long = "answer")]
@@ -290,7 +290,12 @@ fn make_problem_result(result_list: &[RunResult]) -> (FinalResult, i32) {
                 }
             }
             FinalResult::None => {} // skip None result, not run yet
-            FinalResult::Unknown => {} // skip Unknown result, not checked yet
+            FinalResult::Unknown => { // skip Unknown result, not checked yet
+                if sln.cost < best_time || best_index < 0 {
+                    best_time = sln.cost;
+                    best_index = i as i32;
+                }
+            }
             FinalResult::Skipped => {} // skip Skipped result, not run by selection
             _ => {
                 result = sln.result.clone();
