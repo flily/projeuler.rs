@@ -23,6 +23,8 @@ fn sieve_primes(max_prime: usize, limit: i64) -> i64 {
     -1
 }
 
+static LIMIT: i64 = 10001;
+
 pub fn solve() -> i64 {
-    sieve_primes(120000, 10001)
+    sieve_primes(120000, LIMIT)
 }

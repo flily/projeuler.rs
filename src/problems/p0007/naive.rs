@@ -14,19 +14,17 @@ fn is_prime(n: i64) -> bool {
 
 static LIMIT: i64 = 10001;
 
-
 pub fn solve() -> i64 {
     let mut count = 1;
     let mut n = 3;
 
-    loop {
+    while count < LIMIT {
         if is_prime(n) {
             count += 1;
-            if count >= LIMIT {
-                return n;
-            }
         }
 
         n += 2;
     }
+
+    n - 2
 }
