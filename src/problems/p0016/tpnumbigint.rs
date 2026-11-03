@@ -1,6 +1,6 @@
 use num_bigint::BigInt;
 
-pub fn solve() -> i64 {
+pub fn solve_integer() -> i64 {
     let mut num = BigInt::from(2).pow(1000);
     let mut sum = 0;
     let ten = BigInt::from(10);
@@ -14,4 +14,11 @@ pub fn solve() -> i64 {
     }
 
     sum
+}
+
+pub fn solve_string() -> i64 {
+    let num = BigInt::from(2).pow(1000);
+    num.to_string().chars()
+        .map(|c| c.to_digit(10).unwrap() as i64)
+        .sum()
 }
